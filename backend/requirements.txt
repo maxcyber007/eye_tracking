@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# Alzheimer Eye-Tracking Risk API - Python 3.12
+# Install with:  pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+
+# Web framework -------------------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# Computer vision -----------------------------------------------------------
+opencv-python-headless==4.10.0.84
+mediapipe==0.10.20
+
+# Data & machine learning ---------------------------------------------------
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.6.0
+scipy==1.14.1
+joblib==1.4.2
+
+# Tooling -------------------------------------------------------------------
+python-dotenv==1.0.1
+httpx==0.28.1
