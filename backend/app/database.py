@@ -374,6 +374,39 @@ class TestHistoryRepository:
             )
             return cursor.rowcount > 0
 
+    def delete_all(self, *, subject_id: str | None = None) -> int:
+        """Delete every assessment, optionally limited to one participant.
+
+        This only clears the prediction log.  The training dataset and the
+        stored recordings live outside the database and are left untouched.
+
+        Args:
+            subject_id: When given, only that participant's rows are removed.
+
+        Returns:
+            int: Number of rows deleted.
+        """
+        with self.database.connect() as connection:
+            if subject_id:
+                cursor = connection.execute(
+                    "DELETE FROM test_history WHERE subject_id = ?", (subject_id,)
+                )
+            else:
+                cursor = connection.execute("DELETE FROM test_history")
+            removed = int(cursor.rowcount)
+            # Reclaim the identity counter so a cleared log restarts from id 1.
+            if not subject_id:
+                connection.execute(
+                    "DELETE FROM sqlite_sequence WHERE name = 'test_history'"
+                )
+
+        logger.info(
+            "Deleted %d assessment(s)%s",
+            removed,
+            f" for subject {subject_id}" if subject_id else " (full reset)",
+        )
+        return removed
+
 
 #: Process-wide database handle reused by the FastAPI dependency layer.
 _DATABASE: Database | None = None

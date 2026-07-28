@@ -15,10 +15,16 @@ from app.dependencies import (
     resolve_stored_video,
     save_upload,
 )
-from app.exceptions import InvalidVideoError, ModelNotTrainedError
+from app.exceptions import (
+    BadRequestError,
+    InvalidVideoError,
+    ModelNotTrainedError,
+    NotFoundError,
+)
 from app.logging_config import get_logger
 from app.schemas import (
     ErrorResponse,
+    HistoryDeleteResponse,
     HistoryListResponse,
     PredictFeaturesRequest,
     PredictResponse,
@@ -229,4 +235,90 @@ def list_history(
         limit=limit,
         offset=offset,
         items=[record.to_dict() for record in records],
+    )
+
+
+@router.delete(
+    "/history",
+    response_model=HistoryDeleteResponse,
+    summary="Clear the assessment history",
+    responses={400: {"model": ErrorResponse, "description": "The confirmation flag is missing."}},
+)
+def clear_history(
+    history_repository: HistoryRepositoryDep,
+    confirm: Annotated[
+        bool,
+        Query(description="Must be true; guards against an accidental wipe."),
+    ] = False,
+    subject_id: Annotated[
+        str | None, Query(description="Only clear this participant's records.")
+    ] = None,
+) -> HistoryDeleteResponse:
+    """Delete stored assessments, optionally limited to one participant.
+
+    Only the prediction log is affected.  ``dataset.csv``, the trained model and
+    the uploaded recordings are separate stores and are left untouched, so
+    clearing the history never costs you training data.
+
+    Args:
+        history_repository: Injected ``test_history`` repository.
+        confirm: Explicit confirmation flag; the call is refused without it.
+        subject_id: Optional participant filter.
+
+    Returns:
+        HistoryDeleteResponse: Number of rows deleted and the remaining total.
+
+    Raises:
+        EyeTrackingError: When ``confirm`` was not set.
+    """
+    if not confirm:
+        raise BadRequestError(
+            "Pass confirm=true to clear the assessment history.",
+            details={"hint": "DELETE /api/history?confirm=true"},
+        )
+
+    deleted = history_repository.delete_all(subject_id=subject_id)
+    return HistoryDeleteResponse(
+        success=True,
+        deleted=deleted,
+        remaining=history_repository.count(),
+        message=(
+            f"ลบผลย้อนหลัง {deleted} รายการแล้ว "
+            "(ชุดข้อมูลเทรนและโมเดลไม่ถูกแตะต้อง)"
+        ),
+    )
+
+
+@router.delete(
+    "/history/{record_id}",
+    response_model=HistoryDeleteResponse,
+    summary="Delete a single assessment",
+    responses={404: {"model": ErrorResponse, "description": "No such record."}},
+)
+def delete_history_item(
+    record_id: int,
+    history_repository: HistoryRepositoryDep,
+) -> HistoryDeleteResponse:
+    """Delete one stored assessment by primary key.
+
+    Args:
+        record_id: Primary key of the record to remove.
+        history_repository: Injected ``test_history`` repository.
+
+    Returns:
+        HistoryDeleteResponse: Deletion counters for the request.
+
+    Raises:
+        EyeTrackingError: When the record does not exist.
+    """
+    if not history_repository.delete(record_id):
+        raise NotFoundError(
+            f"No assessment with id {record_id}.",
+            details={"record_id": record_id},
+        )
+    return HistoryDeleteResponse(
+        success=True,
+        deleted=1,
+        remaining=history_repository.count(),
+        message=f"ลบรายการ #{record_id} แล้ว",
     )

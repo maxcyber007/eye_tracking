@@ -547,6 +547,7 @@
   async function loadHistory() {
     const container = $("historyList");
     container.innerHTML = '<div class="empty">กำลังโหลด…</div>';
+    if (!$("screen-history").classList.contains("active")) $("historyNotice").hidden = true;
     show("history");
 
     try {
@@ -577,6 +578,42 @@
         .join("");
     } catch {
       container.innerHTML = '<div class="empty">โหลดประวัติไม่สำเร็จ</div>';
+    }
+  }
+
+  /**
+   * ล้างผลย้อนหลังทั้งหมด หลังยืนยันกับผู้ใช้
+   *
+   * ลบเฉพาะบันทึกการทำนายเท่านั้น ชุดข้อมูลเทรนและโมเดลไม่ถูกแตะต้อง
+   *
+   * @returns {Promise<void>}
+   */
+  async function clearHistory() {
+    const confirmed = window.confirm(
+      "ล้างผลย้อนหลังทั้งหมด?\n\n" +
+      "ลบเฉพาะบันทึกการทำนาย (test_history)\n" +
+      "ชุดข้อมูลเทรน dataset.csv และโมเดลจะไม่ถูกลบ\n\n" +
+      "การกระทำนี้ย้อนกลับไม่ได้",
+    );
+    if (!confirmed) return;
+
+    const notice = $("historyNotice");
+    const button = $("btnClearHistory");
+    button.disabled = true;
+
+    try {
+      const response = await fetch(apiUrl("/api/history?confirm=true"), { method: "DELETE" });
+      const body = await response.json();
+      notice.hidden = false;
+      notice.className = response.ok ? "status ok" : "status bad";
+      notice.textContent = body.message || body.error || "ไม่ทราบผลลัพธ์";
+      if (response.ok) await loadHistory();
+    } catch (err) {
+      notice.hidden = false;
+      notice.className = "status bad";
+      notice.textContent = "ติดต่อเซิร์ฟเวอร์ไม่ได้: " + err.message;
+    } finally {
+      button.disabled = false;
     }
   }
 
@@ -665,6 +702,7 @@
   });
   $("btnHistoryFromResult").addEventListener("click", loadHistory);
   $("btnBackFromHistory").addEventListener("click", () => show("intro"));
+  $("btnClearHistory").addEventListener("click", clearHistory);
 
   // ปล่อยกล้องเมื่อออกจากหน้า เพื่อไม่ให้ไฟกล้องค้าง
   window.addEventListener("pagehide", closeCamera);

@@ -51,6 +51,18 @@ class ConfigurationError(EyeTrackingError):
     status_code = 500
 
 
+class BadRequestError(EyeTrackingError):
+    """Raised when request parameters are missing, contradictory or unsafe."""
+
+    status_code = 400
+
+
+class NotFoundError(EyeTrackingError):
+    """Raised when a requested resource does not exist."""
+
+    status_code = 404
+
+
 class InvalidVideoError(EyeTrackingError):
     """Raised when an uploaded file is missing, empty, too large or unsupported."""
 

@@ -304,6 +304,15 @@ class HistoryItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict, description="Stored metadata.")
 
 
+class HistoryDeleteResponse(BaseModel):
+    """Result of removing one or more stored assessments."""
+
+    success: bool = Field(default=True, description="Whether the deletion succeeded.")
+    deleted: int = Field(description="Number of records removed by this request.")
+    remaining: int = Field(description="Number of records still stored afterwards.")
+    message: str = Field(description="Human readable summary of the outcome.")
+
+
 class HistoryListResponse(BaseModel):
     """Paginated listing of stored assessments."""
 
