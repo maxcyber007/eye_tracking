@@ -11,7 +11,8 @@
 <body>
 
 <div class="banner" role="note">
-  เครื่องมือวิจัย — ไม่ใช่การวินิจฉัยทางการแพทย์
+  <span>เครื่องมือวิจัย — ไม่ใช่การวินิจฉัยทางการแพทย์</span>
+  <b class="mode-badge research-only">โหมดนักวิจัย</b>
 </div>
 
 <main id="app">
@@ -25,6 +26,17 @@
         แบบทดสอบใช้เวลาประมาณ 30 วินาที โดยให้คุณมองตามลูกบอลที่เคลื่อนที่บนหน้าจอ
         ระบบจะวิเคราะห์รูปแบบการเคลื่อนไหวของดวงตาจากกล้องหน้า
       </p>
+    </div>
+
+    <!-- แผงควบคุมสำหรับนักวิจัย — แสดงเฉพาะเมื่อ ?mode=research -->
+    <div class="card research-only" id="researchPanel">
+      <h3>ชุดข้อมูลและโมเดล</h3>
+      <div class="quality" id="datasetStats">
+        <div><span>สถานะ</span><b>กำลังโหลด…</b></div>
+      </div>
+      <button class="primary" id="btnTrain" disabled>เทรนโมเดล</button>
+      <button class="ghost small" id="btnRefreshStatus">รีเฟรชสถานะ</button>
+      <div id="trainResult" hidden></div>
     </div>
 
     <div class="card warn">
@@ -46,12 +58,20 @@
       </ul>
     </div>
 
-    <details class="card">
+    <details class="card" id="settingsCard">
       <summary>ตั้งค่าการทดสอบ</summary>
       <div class="fields">
         <div class="field">
           <label for="subjectId">รหัสผู้เข้าร่วม</label>
           <input id="subjectId" type="text" value="" placeholder="เช่น P001" autocomplete="off" />
+        </div>
+        <div class="field research-only">
+          <label for="label">Label สำหรับ dataset <b class="req">*</b></label>
+          <select id="label">
+            <option value="">— ต้องเลือกก่อนเริ่ม —</option>
+            <option value="0">0 — กลุ่มควบคุม (control)</option>
+            <option value="1">1 — กลุ่มเสี่ยง (at risk)</option>
+          </select>
         </div>
         <div class="field">
           <label for="duration">ระยะเวลา (วินาที)</label>
@@ -73,6 +93,7 @@
       </div>
     </details>
 
+    <div class="status bad" id="introError" hidden></div>
     <button class="primary big" id="btnBegin">เริ่มต้น</button>
     <button class="ghost" id="btnHistoryFromIntro">ดูผลย้อนหลัง</button>
   </section>
@@ -118,21 +139,31 @@
 
   <!-- ─────────────────────────────  5. ผลลัพธ์  ───────────────────────────── -->
   <section class="screen" id="screen-result">
-    <div class="gauge-wrap">
-      <svg class="gauge" viewBox="0 0 200 116" aria-hidden="true">
-        <path class="gauge-track" d="M14 106 A 86 86 0 0 1 186 106" />
-        <path class="gauge-fill" id="gaugeFill" d="M14 106 A 86 86 0 0 1 186 106" />
-      </svg>
-      <div class="gauge-value">
-        <b id="resScore">–</b>
-        <span id="resLevel">–</span>
+    <div class="saved-badge" id="savedBadge" hidden></div>
+
+    <div id="predictionBlock">
+      <div class="gauge-wrap">
+        <svg class="gauge" viewBox="0 0 200 116" aria-hidden="true">
+          <path class="gauge-track" d="M14 106 A 86 86 0 0 1 186 106" />
+          <path class="gauge-fill" id="gaugeFill" d="M14 106 A 86 86 0 0 1 186 106" />
+        </svg>
+        <div class="gauge-value">
+          <b id="resScore">–</b>
+          <span id="resLevel">–</span>
+        </div>
       </div>
+
+      <p class="disclaimer-inline">
+        ตัวเลขนี้เป็นผลจากแบบจำลองสถิติ <strong>ไม่ใช่การวินิจฉัย</strong>
+        และไม่ควรใช้ตัดสินใจเรื่องสุขภาพ
+      </p>
     </div>
 
-    <p class="disclaimer-inline">
-      ตัวเลขนี้เป็นผลจากแบบจำลองสถิติ <strong>ไม่ใช่การวินิจฉัย</strong>
-      และไม่ควรใช้ตัดสินใจเรื่องสุขภาพ
-    </p>
+    <div class="card" id="noModelNotice" hidden>
+      <h3>ยังไม่มีโมเดล</h3>
+      <p>บันทึกตัวอย่างเข้าชุดข้อมูลเรียบร้อยแล้ว แต่ยังไม่มีโมเดลจึงยังทำนายไม่ได้
+         กลับไปหน้าแรกแล้วกด “เทรนโมเดล” เมื่อเก็บข้อมูลครบทั้งสองกลุ่มแล้ว</p>
+    </div>
 
     <div class="card" id="qualityCard">
       <h3>คุณภาพการบันทึก</h3>
@@ -150,6 +181,7 @@
     </details>
 
     <button class="primary big" id="btnAgain">ทดสอบอีกครั้ง</button>
+    <button class="ghost research-only" id="btnHomeFromResult">กลับหน้าแรก (เทรนโมเดล)</button>
     <button class="ghost" id="btnHistoryFromResult">ดูผลย้อนหลัง</button>
   </section>
 

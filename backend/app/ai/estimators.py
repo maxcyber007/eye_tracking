@@ -84,14 +84,15 @@ class SklearnRiskModel(BaseRiskModel):
                 details={"classes": unique.tolist()},
             )
 
-        stratify = y if counts.min() >= 2 else None
+        n_test = self._resolve_test_count(len(x), unique.size, settings.test_size)
+        stratify = y if (counts.min() >= 2 and n_test >= unique.size) else None
         if stratify is None:
-            logger.warning("A class has fewer than 2 samples; falling back to a random split.")
+            logger.warning("Cannot stratify this split; falling back to a random split.")
 
         x_train, x_test, y_train, y_test = train_test_split(
             x,
             y,
-            test_size=settings.test_size,
+            test_size=n_test,
             random_state=settings.random_state,
             stratify=stratify,
         )
@@ -152,6 +153,28 @@ class SklearnRiskModel(BaseRiskModel):
         return np.asarray(self._estimator.predict_proba(aligned), dtype=float)
 
     # ------------------------------------------------------------- helpers --
+    @staticmethod
+    def _resolve_test_count(n_samples: int, n_classes: int, test_fraction: float) -> int:
+        """Turn the configured test fraction into a usable absolute row count.
+
+        A plain fraction breaks down on small datasets: ``0.2`` of four rows is
+        a single test row, which a stratified split cannot allocate across two
+        classes.  The count is therefore raised to at least one row per class
+        and capped so the training half keeps at least one row per class too.
+
+        Args:
+            n_samples: Total number of labelled rows.
+            n_classes: Number of distinct classes present.
+            test_fraction: Configured hold-out fraction.
+
+        Returns:
+            int: Number of rows to place in the hold-out split, at least 1.
+        """
+        n_test = int(np.ceil(n_samples * test_fraction))
+        n_test = max(n_test, n_classes)
+        n_test = min(n_test, n_samples - n_classes)
+        return max(n_test, 1)
+
     @staticmethod
     def _roc_auc(estimator: Any, x_test: pd.DataFrame, y_test: np.ndarray) -> float | None:
         """Compute the ROC AUC of the hold-out split when it is well defined.

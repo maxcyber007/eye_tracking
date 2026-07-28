@@ -6,11 +6,23 @@
  *       frame against the recording's own time origin, which is what lets the
  *       backend compute `tracking_error` against the real target path instead
  *       of falling back to its self-consistency proxy.
+ *
+ * Two modes, selected by the `mode` query parameter:
+ *
+ *   (default)        participant mode - posts to /api/predict and shows a score.
+ *   ?mode=research   researcher mode  - requires a label, posts to /api/upload so
+ *                    the sample joins dataset.csv, and exposes dataset status plus
+ *                    a training button. The label field is deliberately hidden in
+ *                    participant mode: a participant must never be asked to
+ *                    classify themselves.
  */
 (() => {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
+
+  /** โหมดนักวิจัยเปิดด้วย ?mode=research บน URL */
+  const RESEARCH_MODE = new URLSearchParams(location.search).get("mode") === "research";
 
   // ─── สถานะของแอป ────────────────────────────────────────────────────────
   const state = {
@@ -22,7 +34,7 @@
     startedAt: 0,
     running: false,
     aborted: false,
-    settings: { subjectId: "", duration: 30, pattern: "horizontal", apiBase: "" },
+    settings: { subjectId: "", duration: 30, pattern: "horizontal", apiBase: "", label: "" },
   };
 
   /** ชื่อและหน่วยของ feature สำหรับแสดงผลให้คนอ่านเข้าใจ */
@@ -78,21 +90,28 @@
   }
 
   /**
-   * ส่งวิดีโอไปทำนาย พร้อมรายงานความคืบหน้าการอัปโหลด
+   * ส่งวิดีโอไป backend พร้อมรายงานความคืบหน้าการอัปโหลด
+   *
+   * โหมดนักวิจัยยิงไป /api/upload พร้อม label เพื่อให้ตัวอย่างถูกต่อท้าย
+   * dataset.csv ส่วนโหมดผู้เข้าร่วมยิงไป /api/predict ซึ่งไม่แตะชุดข้อมูล
+   *
    * @param {Blob} blob ไฟล์วิดีโอที่บันทึกได้
    * @param {string} extension นามสกุลไฟล์ที่เหมาะกับ MIME type
    * @param {(ratio:number)=>void} onProgress callback รับค่า 0–1
    * @returns {Promise<object>} payload จาก backend
    */
-  function uploadForPrediction(blob, extension, onProgress) {
+  function uploadRecording(blob, extension, onProgress) {
     const form = new FormData();
     form.append("file", blob, `recording.${extension}`);
     form.append("target_trajectory", JSON.stringify(state.trajectory));
     if (state.settings.subjectId) form.append("subject_id", state.settings.subjectId);
 
+    const endpoint = RESEARCH_MODE ? "/api/upload" : "/api/predict";
+    if (RESEARCH_MODE) form.append("label", state.settings.label);
+
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
-      request.open("POST", apiUrl("/api/predict"));
+      request.open("POST", apiUrl(endpoint));
       request.timeout = 300000;
 
       request.upload.onprogress = (event) => {
@@ -116,6 +135,121 @@
 
       request.send(form);
     });
+  }
+
+  // ─── โหมดนักวิจัย: สถานะชุดข้อมูลและการเทรน ─────────────────────────────
+  /**
+   * ดึงสถานะชุดข้อมูลและโมเดลจาก GET /api/train/status แล้วแสดงบนแผงควบคุม
+   * @returns {Promise<void>}
+   */
+  async function loadTrainStatus() {
+    const stats = $("datasetStats");
+    const trainButton = $("btnTrain");
+    stats.innerHTML = '<div><span>สถานะ</span><b>กำลังโหลด…</b></div>';
+    trainButton.disabled = true;
+
+    try {
+      const response = await fetch(apiUrl("/api/train/status"));
+      const body = await response.json();
+      const dataset = body.dataset || {};
+      const model = body.model || {};
+      const counts = dataset.label_counts || {};
+      const control = Number(counts["0"] || 0);
+      const atRisk = Number(counts["1"] || 0);
+
+      // ต้องมีอย่างน้อย 2 ตัวอย่างต่อกลุ่ม จึงจะแบ่ง train/test แบบ stratified ได้
+      const ready = control >= 2 && atRisk >= 2;
+
+      stats.innerHTML = [
+        ["ตัวอย่างทั้งหมด", dataset.rows || 0, ""],
+        ["โมเดลปัจจุบัน", model.available ? model.model_type : "ยังไม่มี", model.available ? "level-Low" : "level-Moderate"],
+        ["กลุ่มควบคุม (0)", control, control >= 2 ? "level-Low" : "level-High"],
+        ["กลุ่มเสี่ยง (1)", atRisk, atRisk >= 2 ? "level-Low" : "level-High"],
+      ]
+        .map(([label, value, cls]) => `<div><span>${label}</span><b class="${cls}">${value}</b></div>`)
+        .join("");
+
+      trainButton.disabled = !ready;
+      trainButton.textContent = ready
+        ? "เทรนโมเดล"
+        : "ต้องมีอย่างน้อย 2 ตัวอย่างในแต่ละกลุ่ม";
+
+      if (model.available && model.metrics) renderTrainMetrics(model.metrics, false);
+    } catch {
+      stats.innerHTML = '<div><span>สถานะ</span><b class="level-High">ติดต่อเซิร์ฟเวอร์ไม่ได้</b></div>';
+    }
+  }
+
+  /**
+   * เรียก POST /api/train แล้วแสดงผลการเทรน
+   * @returns {Promise<void>}
+   */
+  async function trainModel() {
+    const button = $("btnTrain");
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "กำลังเทรน…";
+
+    try {
+      const response = await fetch(apiUrl("/api/train"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        $("trainResult").hidden = false;
+        $("trainResult").innerHTML =
+          `<div class="train-error">เทรนไม่สำเร็จ — ${body.message || body.error || "ไม่ทราบสาเหตุ"}</div>`;
+        return;
+      }
+      // รีเฟรชสถานะก่อน แล้วค่อยเขียนทับด้วยผลของรอบที่เพิ่งเทรน
+      await loadTrainStatus();
+      renderTrainMetrics(body.metrics, true);
+    } catch (err) {
+      $("trainResult").hidden = false;
+      $("trainResult").innerHTML = `<div class="train-error">ติดต่อเซิร์ฟเวอร์ไม่ได้: ${err.message}</div>`;
+    } finally {
+      button.textContent = original;
+      button.disabled = false;
+    }
+  }
+
+  /**
+   * แสดงตัวชี้วัดของโมเดล
+   * @param {object} metrics ตัวชี้วัดจาก /api/train หรือจาก metadata ของโมเดลที่โหลดอยู่
+   * @param {boolean} justTrained เพิ่งเทรนเสร็จหรือเป็นการแสดงผลของโมเดลเดิม
+   */
+  function renderTrainMetrics(metrics, justTrained) {
+    if (!metrics || metrics.accuracy === undefined) return;
+    const box = $("trainResult");
+    box.hidden = false;
+    const rows = [
+      ["Accuracy", metrics.accuracy],
+      ["F1", metrics.f1_score],
+      ["Precision", metrics.precision],
+      ["Recall", metrics.recall],
+      ["ROC AUC", metrics.roc_auc],
+      ["CV accuracy", metrics.cv_mean_accuracy],
+    ]
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([label, value]) => `<div><span>${label}</span><b>${Number(value).toFixed(3)}</b></div>`)
+      .join("");
+
+    // ชุดทดสอบเล็กมากทำให้ตัวเลขแกว่งจนตีความไม่ได้ ต้องเตือนให้ชัด
+    const tiny = Number(metrics.test_samples) < 10;
+    const tinyWarning = tiny
+      ? `<p class="train-note warn-note">ชุดทดสอบมีเพียง ${metrics.test_samples} ตัวอย่าง
+         ตัวเลขข้างบนจึงยังไม่มีความหมายทางสถิติ ใช้ยืนยันได้แค่ว่าระบบเทรนผ่านเท่านั้น</p>`
+      : "";
+
+    box.innerHTML = `
+      <div class="train-head">${justTrained ? "เทรนสำเร็จ" : "โมเดลที่ใช้อยู่"} —
+        ${metrics.train_samples} train / ${metrics.test_samples} test</div>
+      <div class="quality metrics">${rows}</div>
+      ${tinyWarning}
+      <p class="train-note">ตัวเลขนี้วัดจากการแบ่งข้อมูลแบบสุ่ม ไม่ได้แบ่งตามผู้เข้าร่วม
+        ถ้ามีหลายคลิปต่อคน ค่าที่เห็นจะสูงกว่าความเป็นจริง</p>`;
   }
 
   // ─── เส้นทางของลูกบอล ───────────────────────────────────────────────────
@@ -287,7 +421,7 @@
     $("uploadProgress").style.width = "0";
 
     try {
-      const body = await uploadForPrediction(blob, extension, (ratio) => {
+      const body = await uploadRecording(blob, extension, (ratio) => {
         $("uploadProgress").style.width = ratio * 100 + "%";
         if (ratio >= 1) {
           $("processingTitle").textContent = "กำลังวิเคราะห์…";
@@ -301,12 +435,44 @@
   }
 
   /**
-   * แสดงผลการทำนายบนหน้าจอผลลัพธ์
-   * @param {object} body payload จาก POST /api/predict
+   * แสดงผลบนหน้าจอผลลัพธ์
+   *
+   * รองรับสองรูปแบบ payload: /api/predict คืนค่าแบนราบ ส่วน /api/upload
+   * ห่อผลทำนายไว้ใน `prediction` และอาจเป็น null เมื่อยังไม่มีโมเดล
+   *
+   * @param {object} body payload จาก POST /api/predict หรือ /api/upload
    */
   function renderResult(body) {
-    const score = Number(body.risk_score) || 0;
-    const level = body.risk_level || "–";
+    const prediction = body.prediction || (body.risk_score !== undefined ? body : null);
+
+    // แจ้งว่าตัวอย่างถูกบันทึกเข้าชุดข้อมูลแล้ว (เฉพาะเส้นทาง /api/upload)
+    const badge = $("savedBadge");
+    if (body.dataset_path) {
+      const label = state.settings.label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)";
+      badge.textContent = `บันทึกเข้าชุดข้อมูลแล้ว — ${label}`;
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+
+    $("predictionBlock").hidden = !prediction;
+    $("noModelNotice").hidden = !!prediction;
+
+    if (prediction) renderGauge(prediction);
+    renderQuality(body, prediction);
+    renderFeatures(body.features || prediction?.features || {});
+    $("rawJson").textContent = JSON.stringify(body, null, 2);
+
+    show("result");
+  }
+
+  /**
+   * วาดมาตรวัดคะแนนความเสี่ยง
+   * @param {object} prediction ผลทำนายที่มี risk_score / risk_level
+   */
+  function renderGauge(prediction) {
+    const score = Number(prediction.risk_score) || 0;
+    const level = prediction.risk_level || "–";
 
     $("resScore").textContent = score.toFixed(3);
     $("resScore").className = "level-" + level;
@@ -319,10 +485,17 @@
     requestAnimationFrame(() => {
       gauge.style.strokeDashoffset = String(270 - Math.max(0, Math.min(1, score)) * 270);
     });
+  }
 
+  /**
+   * แสดงการ์ดคุณภาพการบันทึก
+   * @param {object} body payload เต็มจาก backend
+   * @param {object|null} prediction ผลทำนาย ถ้ามี
+   */
+  function renderQuality(body, prediction) {
     const video = body.video || {};
-    const meta = body.sample_metadata || {};
-    const detection = Number(video.detection_ratio || 0);
+    const meta = body.sample_metadata || prediction?.metadata || {};
+    const detection = Number(video.detection_ratio ?? meta.detection_ratio ?? 0);
     const usedTarget = meta.tracking_error_source === "target";
 
     $("qualityGrid").innerHTML = [
@@ -333,15 +506,18 @@
     ]
       .map(([label, value, cls]) => `<div><span>${label}</span><b class="${cls}">${value}</b></div>`)
       .join("");
+  }
 
-    const rows = Object.entries(body.features || {}).map(([key, value]) => {
+  /**
+   * แสดงตารางค่าที่วัดได้ทั้งหมด
+   * @param {object} features แผนที่ชื่อ feature ไปยังค่า
+   */
+  function renderFeatures(features) {
+    const rows = Object.entries(features).map(([key, value]) => {
       const [label, unit] = FEATURE_LABELS[key] || [key, ""];
       return `<tr><td>${label}<small>${unit}</small></td><td>${Number(value).toFixed(4)}</td></tr>`;
     });
     $("featureTable").querySelector("tbody").innerHTML = rows.join("");
-    $("rawJson").textContent = JSON.stringify(body, null, 2);
-
-    show("result");
   }
 
   /**
@@ -412,13 +588,45 @@
       duration: Math.min(60, Math.max(10, Number($("duration").value) || 30)),
       pattern: $("pattern").value,
       apiBase: $("apiBase").value.trim(),
+      label: RESEARCH_MODE ? $("label").value : "",
     };
+  }
+
+  /**
+   * ตรวจว่าเริ่มทดสอบได้หรือยัง
+   * @returns {string} ข้อความแจ้งเตือน หรือสตริงว่างเมื่อผ่าน
+   */
+  function validateBeforeStart() {
+    if (RESEARCH_MODE && !state.settings.label) {
+      return "โหมดนักวิจัยต้องเลือก label ก่อน — เปิด “ตั้งค่าการทดสอบ” แล้วเลือกกลุ่ม";
+    }
+    if (RESEARCH_MODE && !state.settings.subjectId) {
+      return "กรุณาใส่รหัสผู้เข้าร่วม เพื่อให้แบ่งข้อมูลตามคนได้ในภายหลัง";
+    }
+    return "";
   }
 
   $("btnBegin").addEventListener("click", () => {
     readSettings();
+    const problem = validateBeforeStart();
+    const banner = $("introError");
+    if (problem) {
+      banner.textContent = problem;
+      banner.hidden = false;
+      $("settingsCard").open = true;
+      banner.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    banner.hidden = true;
     show("setup");
     openCamera();
+  });
+
+  $("btnTrain").addEventListener("click", trainModel);
+  $("btnRefreshStatus").addEventListener("click", loadTrainStatus);
+  $("btnHomeFromResult").addEventListener("click", () => {
+    show("intro");
+    if (RESEARCH_MODE) loadTrainStatus();
   });
 
   $("btnBackToIntro").addEventListener("click", () => {
@@ -460,4 +668,17 @@
 
   // ปล่อยกล้องเมื่อออกจากหน้า เพื่อไม่ให้ไฟกล้องค้าง
   window.addEventListener("pagehide", closeCamera);
+
+  // ─── เริ่มต้นตามโหมด ────────────────────────────────────────────────────
+  /** เปิดหรือซ่อนส่วนที่มีเฉพาะโหมดนักวิจัย แล้วโหลดสถานะชุดข้อมูล */
+  function initialiseMode() {
+    document.body.classList.toggle("research", RESEARCH_MODE);
+    if (!RESEARCH_MODE) return;
+
+    document.title = "โหมดนักวิจัย — เก็บข้อมูลและเทรนโมเดล";
+    $("settingsCard").open = true;
+    loadTrainStatus();
+  }
+
+  initialiseMode();
 })();

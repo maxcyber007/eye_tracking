@@ -43,6 +43,25 @@ html, body {
   text-align: center;
 }
 
+.banner { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.mode-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(74, 158, 255, .18);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+/* ส่วนที่แสดงเฉพาะโหมดนักวิจัย (?mode=research) */
+.research-only { display: none !important; }
+body.research .research-only { display: revert !important; }
+body.research .mode-badge { display: inline-block !important; }
+body.research button.research-only { display: block !important; }
+
+.req { color: var(--bad); }
+
 main {
   max-width: 560px;
   margin: 0 auto;
@@ -234,6 +253,40 @@ button.big { padding: 16px; font-size: 16px; }
 .level-Low    { color: var(--ok)   !important; stroke: var(--ok)   !important; }
 .level-Moderate { color: var(--warn) !important; stroke: var(--warn) !important; }
 .level-High   { color: var(--bad)  !important; stroke: var(--bad)  !important; }
+
+/* ── โหมดนักวิจัย: แผงชุดข้อมูล / ผลการเทรน / ป้ายบันทึกแล้ว ─────────── */
+button.small { padding: 10px; font-size: 13px; }
+
+#trainResult { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.train-head { font-size: 13px; font-weight: 600; color: var(--ok); margin-bottom: 10px; }
+.train-error {
+  font-size: 13px; color: var(--bad);
+  background: rgba(248, 81, 73, .1);
+  border: 1px solid rgba(248, 81, 73, .4);
+  border-radius: 8px; padding: 10px 12px;
+}
+.quality.metrics { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.quality.metrics b { font-size: 15px; }
+.train-note { font-size: 11.5px; color: var(--muted); margin: 12px 0 0; line-height: 1.5; }
+.warn-note {
+  color: #d8c39a;
+  background: rgba(210, 153, 34, .1);
+  border: 1px solid rgba(210, 153, 34, .4);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+
+.saved-badge {
+  background: rgba(63, 185, 80, .12);
+  border: 1px solid rgba(63, 185, 80, .45);
+  color: var(--ok);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 16px;
+}
 
 .disclaimer-inline {
   font-size: 12px;
