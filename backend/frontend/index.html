@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#0d1117" />
+<title>ประเมินความเสี่ยงจากการเคลื่อนไหวดวงตา</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>👁️</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="banner" role="note">
+  เครื่องมือวิจัย — ไม่ใช่การวินิจฉัยทางการแพทย์
+</div>
+
+<main id="app">
+
+  <!-- ─────────────────────────────  1. หน้าเริ่มต้น  ───────────────────────────── -->
+  <section class="screen active" id="screen-intro">
+    <div class="hero">
+      <div class="hero-icon">👁️</div>
+      <h1>ทดสอบการเคลื่อนไหวดวงตา</h1>
+      <p class="lead">
+        แบบทดสอบใช้เวลาประมาณ 30 วินาที โดยให้คุณมองตามลูกบอลที่เคลื่อนที่บนหน้าจอ
+        ระบบจะวิเคราะห์รูปแบบการเคลื่อนไหวของดวงตาจากกล้องหน้า
+      </p>
+    </div>
+
+    <div class="card warn">
+      <h3>โปรดอ่านก่อนเริ่ม</h3>
+      <p>
+        นี่คือซอฟต์แวร์ต้นแบบสำหรับงานวิจัย <strong>ไม่ใช่เครื่องมือแพทย์</strong>
+        และไม่สามารถใช้วินิจฉัยหรือคัดกรองโรคได้ ผลลัพธ์ที่ได้เป็นเพียงตัวเลขจากแบบจำลองทางสถิติ
+        หากคุณกังวลเรื่องความจำหรือการรับรู้ กรุณาปรึกษาแพทย์
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>เตรียมตัว</h3>
+      <ul class="checklist">
+        <li>อยู่ในที่ที่มีแสงสว่างเพียงพอ ไม่ย้อนแสง</li>
+        <li>ถือเครื่องให้มั่นคง ห่างจากใบหน้าประมาณ 30–40 ซม.</li>
+        <li>ถอดแว่นที่สะท้อนแสงจ้าออก ถ้าทำได้</li>
+        <li><strong>ขยับเฉพาะดวงตา อย่าหันศีรษะตามลูกบอล</strong></li>
+      </ul>
+    </div>
+
+    <details class="card">
+      <summary>ตั้งค่าการทดสอบ</summary>
+      <div class="fields">
+        <div class="field">
+          <label for="subjectId">รหัสผู้เข้าร่วม</label>
+          <input id="subjectId" type="text" value="" placeholder="เช่น P001" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="duration">ระยะเวลา (วินาที)</label>
+          <input id="duration" type="number" value="30" min="10" max="60" step="5" />
+        </div>
+        <div class="field">
+          <label for="pattern">รูปแบบการเคลื่อนที่</label>
+          <select id="pattern">
+            <option value="horizontal">แนวนอน — smooth pursuit</option>
+            <option value="circular">วงกลม</option>
+            <option value="lissajous">เลข 8 — Lissajous</option>
+            <option value="step">กระโดดเป็นจุด — saccade</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="apiBase">Backend</label>
+          <input id="apiBase" type="text" value="" placeholder="ว่างไว้ = เซิร์ฟเวอร์เดียวกัน" autocomplete="off" />
+        </div>
+      </div>
+    </details>
+
+    <button class="primary big" id="btnBegin">เริ่มต้น</button>
+    <button class="ghost" id="btnHistoryFromIntro">ดูผลย้อนหลัง</button>
+  </section>
+
+  <!-- ─────────────────────────────  2. ตั้งกล้อง  ───────────────────────────── -->
+  <section class="screen" id="screen-setup">
+    <h2>จัดตำแหน่งใบหน้า</h2>
+    <p class="lead">ให้ใบหน้าอยู่ในกรอบ มองตรงมาที่กล้อง</p>
+
+    <div class="stage">
+      <video id="setupPreview" playsinline muted autoplay></video>
+      <svg class="face-guide" viewBox="0 0 300 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <ellipse cx="150" cy="190" rx="96" ry="128" />
+      </svg>
+    </div>
+
+    <div class="status" id="setupStatus">กำลังขอสิทธิ์เข้าถึงกล้อง…</div>
+
+    <button class="primary big" id="btnStartTask" disabled>เริ่มทดสอบ</button>
+    <button class="ghost" id="btnBackToIntro">ย้อนกลับ</button>
+  </section>
+
+  <!-- ─────────────────────────────  3. ทำแบบทดสอบ  ───────────────────────────── -->
+  <section class="screen" id="screen-task">
+    <div class="stage task">
+      <video id="taskPreview" playsinline muted autoplay></video>
+      <div class="ball" id="ball" aria-hidden="true"></div>
+      <div class="countdown" id="countdown" aria-live="assertive"></div>
+      <div class="rec-badge" id="recBadge"><span class="dot"></span>REC</div>
+    </div>
+    <div class="progress"><div class="progress-fill" id="taskProgress"></div></div>
+    <p class="hint" id="taskHint">มองตามลูกบอลโดยไม่ขยับศีรษะ</p>
+    <button class="ghost" id="btnAbort">ยกเลิก</button>
+  </section>
+
+  <!-- ─────────────────────────────  4. กำลังประมวลผล  ───────────────────────────── -->
+  <section class="screen center" id="screen-processing">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2 id="processingTitle">กำลังวิเคราะห์…</h2>
+    <p class="lead" id="processingDetail">กำลังอัปโหลดวิดีโอ</p>
+    <div class="progress slim"><div class="progress-fill" id="uploadProgress"></div></div>
+  </section>
+
+  <!-- ─────────────────────────────  5. ผลลัพธ์  ───────────────────────────── -->
+  <section class="screen" id="screen-result">
+    <div class="gauge-wrap">
+      <svg class="gauge" viewBox="0 0 200 116" aria-hidden="true">
+        <path class="gauge-track" d="M14 106 A 86 86 0 0 1 186 106" />
+        <path class="gauge-fill" id="gaugeFill" d="M14 106 A 86 86 0 0 1 186 106" />
+      </svg>
+      <div class="gauge-value">
+        <b id="resScore">–</b>
+        <span id="resLevel">–</span>
+      </div>
+    </div>
+
+    <p class="disclaimer-inline">
+      ตัวเลขนี้เป็นผลจากแบบจำลองสถิติ <strong>ไม่ใช่การวินิจฉัย</strong>
+      และไม่ควรใช้ตัดสินใจเรื่องสุขภาพ
+    </p>
+
+    <div class="card" id="qualityCard">
+      <h3>คุณภาพการบันทึก</h3>
+      <div class="quality" id="qualityGrid"></div>
+    </div>
+
+    <details class="card">
+      <summary>ค่าที่วัดได้ทั้งหมด</summary>
+      <table class="features" id="featureTable"><tbody></tbody></table>
+    </details>
+
+    <details class="card">
+      <summary>ข้อมูลดิบจาก API</summary>
+      <pre id="rawJson"></pre>
+    </details>
+
+    <button class="primary big" id="btnAgain">ทดสอบอีกครั้ง</button>
+    <button class="ghost" id="btnHistoryFromResult">ดูผลย้อนหลัง</button>
+  </section>
+
+  <!-- ─────────────────────────────  6. ประวัติ  ───────────────────────────── -->
+  <section class="screen" id="screen-history">
+    <h2>ผลย้อนหลัง</h2>
+    <div id="historyList" class="history"></div>
+    <button class="ghost" id="btnBackFromHistory">ย้อนกลับ</button>
+  </section>
+
+  <!-- ─────────────────────────────  ข้อผิดพลาด  ───────────────────────────── -->
+  <section class="screen center" id="screen-error">
+    <div class="error-icon" aria-hidden="true">!</div>
+    <h2 id="errorTitle">เกิดข้อผิดพลาด</h2>
+    <p class="lead" id="errorMessage"></p>
+    <div class="card hint-card" id="errorHint" hidden></div>
+    <button class="primary big" id="btnRetry">ลองใหม่</button>
+    <button class="ghost" id="btnErrorHome">กลับหน้าแรก</button>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

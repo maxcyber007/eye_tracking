@@ -16,6 +16,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import build_api_router, health
@@ -211,8 +212,41 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health.router)
     application.include_router(build_api_router())
     register_exception_handlers(application)
+    mount_frontend(application, settings)
 
     return application
+
+
+def mount_frontend(application: FastAPI, settings: Settings) -> None:
+    """Serve the bundled web client from the configured mount path.
+
+    Serving the client from the API process keeps deployment to a single
+    command and removes cross-origin requests entirely.  The mount is skipped
+    silently when disabled or when the directory is absent, so an API-only
+    deployment needs no code change.
+
+    Args:
+        application: Application to mount the static files on.
+        settings: Settings supplying the directory and the mount path.
+
+    Returns:
+        None
+    """
+    if not settings.serve_frontend:
+        logger.info("Frontend serving is disabled (SERVE_FRONTEND=false)")
+        return
+
+    directory = settings.frontend_dir
+    if not directory.is_dir() or not (directory / "index.html").is_file():
+        logger.warning("Frontend directory %s has no index.html; skipping mount", directory)
+        return
+
+    application.mount(
+        settings.frontend_mount_path,
+        StaticFiles(directory=directory, html=True),
+        name="frontend",
+    )
+    logger.info("Frontend mounted at %s from %s", settings.frontend_mount_path, directory)
 
 
 #: ASGI application consumed by ``uvicorn app.main:app``.

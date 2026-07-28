@@ -36,6 +36,7 @@ def read_root(settings: SettingsDep) -> RootResponse:
         version=settings.app_version,
         environment=settings.environment,
         docs_url=settings.docs_url,
+        ui_url=settings.frontend_mount_path if settings.serve_frontend else None,
     )
 
 

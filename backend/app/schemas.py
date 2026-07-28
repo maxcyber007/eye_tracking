@@ -115,6 +115,9 @@ class RootResponse(BaseModel):
     version: str = Field(description="Application version.")
     environment: str = Field(description="Deployment environment.")
     docs_url: str = Field(description="Relative URL of the Swagger UI.")
+    ui_url: str | None = Field(
+        default=None, description="Relative URL of the bundled web client, when served."
+    )
 
 
 class HealthResponse(BaseModel):

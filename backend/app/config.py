@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     model_dir: Path = Field(default=BACKEND_ROOT / "app" / "models")
     dataset_dir: Path = Field(default=BACKEND_ROOT / "dataset")
     log_dir: Path = Field(default=BACKEND_ROOT / "logs")
+    frontend_dir: Path = Field(default=BACKEND_ROOT / "frontend")
+
+    serve_frontend: bool = True
+    frontend_mount_path: str = "/ui"
 
     model_filename: str = "eye_model.pkl"
     dataset_filename: str = "dataset.csv"

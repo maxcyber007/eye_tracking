@@ -1,0 +1,307 @@
+/* Web client for the Alzheimer eye-tracking risk prototype.
+   Mobile-first: the layout targets a phone held in portrait, then widens on
+   larger screens. */
+
+:root {
+  color-scheme: dark;
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2430;
+  --line: #30363d;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --accent: #4a9eff;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif;
+  line-height: 1.6;
+  overscroll-behavior-y: none;
+}
+
+/* ── ป้ายเตือนถาวร ─────────────────────────────────────────────────────── */
+.banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 7px 14px;
+  padding-top: max(7px, env(safe-area-inset-top));
+  background: #3a2a08;
+  color: #f0c674;
+  border-bottom: 1px solid #5a4410;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 16px calc(28px + env(safe-area-inset-bottom));
+}
+
+/* ── ระบบหน้าจอ ────────────────────────────────────────────────────────── */
+.screen { display: none; animation: fade .22s ease; }
+.screen.active { display: block; }
+.screen.center { text-align: center; padding-top: 42px; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+h1 { font-size: 22px; font-weight: 700; margin: 0 0 8px; letter-spacing: -.01em; }
+h2 { font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.lead { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+
+.hero { text-align: center; margin-bottom: 20px; }
+.hero-icon { font-size: 46px; line-height: 1; margin-bottom: 10px; }
+
+/* ── การ์ด ─────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+}
+.card p { margin: 0; color: var(--muted); }
+.card.warn { background: #241a08; border-color: #5a4410; }
+.card.warn p { color: #d8c39a; }
+.card.warn h3 { color: #f0c674; }
+
+details.card > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13.5px;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+details.card > summary::after { content: "▾"; color: var(--muted); transition: transform .2s; }
+details.card[open] > summary::after { transform: rotate(180deg); }
+details.card > summary::-webkit-details-marker { display: none; }
+
+.checklist { margin: 0; padding-left: 18px; color: var(--muted); }
+.checklist li { margin-bottom: 5px; }
+.checklist li::marker { color: var(--accent); }
+
+/* ── ฟอร์ม ─────────────────────────────────────────────────────────────── */
+.fields { display: grid; gap: 12px; margin-top: 14px; }
+.field label { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+input, select {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 11px;
+  font-size: 15px; /* ≥16px กัน iOS ซูมอัตโนมัติ ใช้ 15 + transform ไม่คุ้ม จึงยอมรับ */
+  font-family: inherit;
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* ── ปุ่ม ──────────────────────────────────────────────────────────────── */
+button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: opacity .15s, transform .1s;
+}
+button:active:not(:disabled) { transform: scale(.985); }
+button:disabled { opacity: .4; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #04121f; }
+button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+button.big { padding: 16px; font-size: 16px; }
+
+/* ── เวทีกล้อง ─────────────────────────────────────────────────────────── */
+.stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.stage.task { aspect-ratio: 3 / 4; }
+.stage video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+.face-guide { position: absolute; inset: 0; width: 100%; height: 100%; }
+.face-guide ellipse {
+  fill: none;
+  stroke: rgba(74, 158, 255, .85);
+  stroke-width: 2.5;
+  stroke-dasharray: 10 9;
+}
+
+.ball {
+  position: absolute;
+  width: 38px; height: 38px;
+  margin: -19px 0 0 -19px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 34%, #fff, var(--accent) 62%);
+  box-shadow: 0 0 26px rgba(74, 158, 255, .9);
+  display: none;
+  pointer-events: none;
+  will-change: left, top;
+}
+
+.countdown {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  font-size: 84px; font-weight: 800;
+  background: rgba(0, 0, 0, .6);
+}
+
+.rec-badge {
+  position: absolute; top: 10px; right: 10px;
+  display: none;
+  align-items: center; gap: 6px;
+  padding: 5px 10px;
+  background: rgba(248, 81, 73, .18);
+  border: 1px solid var(--bad);
+  border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: var(--bad);
+}
+.rec-badge .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bad);
+  animation: blink 1s steps(2, start) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── ความคืบหน้า ───────────────────────────────────────────────────────── */
+.progress { height: 5px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+.progress.slim { max-width: 260px; margin: 18px auto 0; }
+.progress-fill { height: 100%; width: 0; background: var(--accent); transition: width .12s linear; }
+
+.status, .hint {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  text-align: center;
+}
+.status.ok { color: var(--ok); border-color: rgba(63, 185, 80, .4); }
+.status.bad { color: var(--bad); border-color: rgba(248, 81, 73, .4); }
+
+.spinner {
+  width: 42px; height: 42px;
+  margin: 0 auto 20px;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── มาตรวัดผล ─────────────────────────────────────────────────────────── */
+.gauge-wrap { position: relative; max-width: 300px; margin: 6px auto 4px; }
+.gauge { width: 100%; display: block; }
+.gauge-track, .gauge-fill { fill: none; stroke-width: 15; stroke-linecap: round; }
+.gauge-track { stroke: var(--panel-2); }
+.gauge-fill {
+  stroke: var(--accent);
+  stroke-dasharray: 270;
+  stroke-dashoffset: 270;
+  transition: stroke-dashoffset .9s cubic-bezier(.22, 1, .36, 1), stroke .4s;
+}
+.gauge-value { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; }
+.gauge-value b { display: block; font-size: 40px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.gauge-value span { display: block; font-size: 15px; font-weight: 700; margin-top: 5px; }
+
+.level-Low    { color: var(--ok)   !important; stroke: var(--ok)   !important; }
+.level-Moderate { color: var(--warn) !important; stroke: var(--warn) !important; }
+.level-High   { color: var(--bad)  !important; stroke: var(--bad)  !important; }
+
+.disclaimer-inline {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  margin: 0 0 18px;
+  padding: 0 6px;
+}
+
+/* ── ตารางค่า ──────────────────────────────────────────────────────────── */
+.quality { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.quality div span { display: block; font-size: 11px; color: var(--muted); }
+.quality div b { font-size: 17px; font-weight: 700; }
+
+.features { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+.features td { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.features tr:last-child td { border-bottom: 0; }
+.features td:first-child { color: var(--muted); }
+.features td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.features td small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+
+pre {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ── ประวัติ ───────────────────────────────────────────────────────────── */
+.history { display: grid; gap: 10px; margin-bottom: 16px; }
+.history-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.history-item .meta { min-width: 0; }
+.history-item .meta b { display: block; font-size: 13px; font-weight: 600; }
+.history-item .meta span {
+  display: block; font-size: 11.5px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-item .val { text-align: right; flex-shrink: 0; }
+.history-item .val b { display: block; font-size: 19px; font-weight: 700; }
+.history-item .val span { font-size: 11px; font-weight: 600; }
+.empty { color: var(--muted); text-align: center; padding: 34px 0; font-size: 14px; }
+
+/* ── ข้อผิดพลาด ────────────────────────────────────────────────────────── */
+.error-icon {
+  width: 58px; height: 58px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: rgba(248, 81, 73, .14);
+  border: 2px solid var(--bad);
+  color: var(--bad);
+  font-size: 30px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.hint-card { text-align: left; color: var(--muted); font-size: 13px; }
+
+@media (min-width: 620px) {
+  .stage, .stage.task { aspect-ratio: 4 / 3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
