@@ -554,6 +554,7 @@ def ensure_initial_admin(database: Database, settings: Settings) -> None:
     """
     repository = UserRepository(database)
     if repository.count() > 0:
+        _report_ignored_admin_password(repository, settings)
         return
 
     password = settings.admin_password or secrets.token_urlsafe(12)
@@ -579,3 +580,61 @@ def ensure_initial_admin(database: Database, settings: Settings) -> None:
         )
     else:
         logger.info("Created the initial admin account '%s'", settings.admin_username)
+
+
+def _report_ignored_admin_password(repository: UserRepository, settings: Settings) -> None:
+    """Warn when ``ADMIN_PASSWORD`` is set but cannot take effect.
+
+    Accounts are only seeded into an empty user table, so adding
+    ``ADMIN_PASSWORD`` to ``.env`` after the first start silently does nothing
+    and the operator is left unable to sign in.  Rather than fail quietly, say
+    exactly what happened and how to fix it.  Setting
+    ``ADMIN_PASSWORD_RESET=true`` opts in to applying the value on every start,
+    which suits container deployments that manage credentials declaratively.
+
+    Args:
+        repository: User repository used to inspect the existing account.
+        settings: Settings carrying the configured admin credentials.
+
+    Returns:
+        None
+    """
+    if not settings.admin_password:
+        return
+
+    record = repository.get_by_username(settings.admin_username)
+    if record is None:
+        logger.warning(
+            "ADMIN_PASSWORD is set but no account named '%s' exists. Create it with: "
+            "python scripts/manage_users.py add %s",
+            settings.admin_username,
+            settings.admin_username,
+        )
+        return
+
+    user, password_hash = record
+    if verify_password(settings.admin_password, password_hash):
+        return
+
+    if settings.admin_password_reset:
+        repository.set_password(settings.admin_username, settings.admin_password)
+        SessionRepository(repository.database, settings).revoke_all(user.id)
+        logger.warning(
+            "ADMIN_PASSWORD_RESET is enabled: reset the password of '%s' from the "
+            "environment and revoked its sessions.",
+            settings.admin_username,
+        )
+        return
+
+    logger.warning(
+        "\n%s\n  ADMIN_PASSWORD does not match the stored password for '%s' and was\n"
+        "  IGNORED. Accounts are only seeded when the user table is empty, so\n"
+        "  editing .env after the first start has no effect.\n\n"
+        "  To use the password from .env, either:\n"
+        "      python scripts/manage_users.py passwd %s\n"
+        "  or set ADMIN_PASSWORD_RESET=true to apply it on every start.\n%s",
+        "=" * 68,
+        settings.admin_username,
+        settings.admin_username,
+        "=" * 68,
+    )

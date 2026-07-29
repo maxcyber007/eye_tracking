@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     admin_username: str = "admin"
     #: Leave empty to have a strong password generated and logged on first start.
     admin_password: str = ""
+    #: Re-apply ``admin_password`` on every start, for declarative deployments.
+    #: Off by default so a password changed through the CLI is never overwritten.
+    admin_password_reset: bool = False
     admin_display_name: str = "ผู้ดูแลระบบ"
     session_ttl_minutes: int = 720
     session_cookie_name: str = "eyetrack_session"
