@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0d1117" />
+<meta name="robots" content="noindex, nofollow" />
+<title>แดชบอร์ดผู้ดูแล — ระบบประเมินการเคลื่อนไหวดวงตา</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🔐</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body class="dashboard">
+
+<!-- ═══════════════════════════  หน้าเข้าสู่ระบบ  ═══════════════════════════ -->
+<section class="screen active" id="view-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="hero">
+        <div class="hero-icon">🔐</div>
+        <h1>เข้าสู่ระบบ</h1>
+        <p class="lead">สำหรับนักวิจัยและผู้ดูแลระบบเท่านั้น</p>
+      </div>
+
+      <form id="loginForm" autocomplete="on">
+        <div class="fields">
+          <div class="field">
+            <label for="username">ชื่อผู้ใช้</label>
+            <input id="username" name="username" type="text" autocomplete="username"
+                   autocapitalize="none" spellcheck="false" required />
+          </div>
+          <div class="field">
+            <label for="password">รหัสผ่าน</label>
+            <input id="password" name="password" type="password"
+                   autocomplete="current-password" required />
+          </div>
+        </div>
+        <div class="status bad" id="loginError" hidden></div>
+        <button class="primary big" type="submit" id="btnLogin">เข้าสู่ระบบ</button>
+      </form>
+
+      <a class="link-back" href="./">← กลับไปหน้าประเมิน</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════  แดชบอร์ด  ═══════════════════════════ -->
+<section class="screen" id="view-dashboard">
+
+  <header class="topbar">
+    <div>
+      <b>แดชบอร์ดผู้ดูแล</b>
+      <span id="currentUser">—</span>
+    </div>
+    <button class="ghost tiny" id="btnLogout">ออกจากระบบ</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">ภาพรวม</button>
+    <button class="tab" data-tab="history">รายงานประวัติ</button>
+    <button class="tab" data-tab="collect">เก็บข้อมูล</button>
+  </nav>
+
+  <!-- ── แท็บภาพรวม ─────────────────────────────────────────────────── -->
+  <div class="tab-panel active" id="tab-overview">
+    <div class="card">
+      <h3>ชุดข้อมูลและโมเดล</h3>
+      <div class="quality" id="datasetStats">
+        <div><span>สถานะ</span><b>กำลังโหลด…</b></div>
+      </div>
+      <button class="primary" id="btnTrain" disabled>เทรนโมเดล</button>
+      <button class="ghost small" id="btnRefreshStatus">รีเฟรชสถานะ</button>
+      <div id="trainResult" hidden></div>
+    </div>
+
+    <div class="card">
+      <h3>สถานะระบบ</h3>
+      <table class="features" id="systemTable"><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- ── แท็บรายงานประวัติ ──────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-history">
+    <div class="card">
+      <h3>สรุป</h3>
+      <div class="quality" id="historySummary"></div>
+    </div>
+
+    <div class="filter-row">
+      <div class="field">
+        <label for="filterSubject">กรองตามรหัสผู้เข้าร่วม</label>
+        <input id="filterSubject" type="text" placeholder="เว้นว่าง = ทั้งหมด" autocomplete="off" />
+      </div>
+      <button class="ghost small" id="btnApplyFilter">ค้นหา</button>
+    </div>
+
+    <div id="historyTableWrap" class="table-wrap">
+      <table class="report" id="historyTable">
+        <thead>
+          <tr>
+            <th>#</th><th>วันที่</th><th>ผู้เข้าร่วม</th>
+            <th class="num">คะแนน</th><th>ระดับ</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <button class="ghost small" id="btnPrev" disabled>ก่อนหน้า</button>
+      <span id="pageInfo">—</span>
+      <button class="ghost small" id="btnNext" disabled>ถัดไป</button>
+    </div>
+
+    <div class="status" id="historyNotice" hidden></div>
+    <button class="ghost" id="btnExportCsv">ดาวน์โหลดเป็น CSV</button>
+    <button class="danger" id="btnClearHistory">ล้างผลย้อนหลังทั้งหมด</button>
+  </div>
+
+  <!-- ── แท็บเก็บข้อมูล ─────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-collect">
+    <div class="card warn">
+      <h3>ก่อนเก็บข้อมูลจากผู้เข้าร่วมจริง</h3>
+      <p>
+        ต้องผ่านการอนุมัติจากคณะกรรมการจริยธรรมการวิจัยในมนุษย์ และได้รับความยินยอมเป็นลายลักษณ์อักษรแล้ว
+        วิดีโอใบหน้าเป็นข้อมูลชีวมิติที่ทำให้ไม่ระบุตัวตนไม่ได้ จึงอยู่ภายใต้ PDPA
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>โหมดนักวิจัย</h3>
+      <p>
+        เปิดหน้าประเมินในโหมดที่มีช่องเลือก label เมื่อบันทึกเสร็จ ตัวอย่างจะถูกต่อท้าย
+        <code>dataset.csv</code> ทันที แล้วกลับมาที่แท็บภาพรวมเพื่อกดเทรน
+      </p>
+      <a class="button-link" href="./?mode=research">เปิดโหมดนักวิจัย</a>
+    </div>
+
+    <div class="card">
+      <h3>คำแนะนำ</h3>
+      <ul class="checklist">
+        <li>ใส่รหัสผู้เข้าร่วมให้ตรงกับฐานข้อมูลของโครงการทุกครั้ง</li>
+        <li>ใช้อุปกรณ์ ระยะห่าง และสภาพแสงเดียวกันทุกคน</li>
+        <li>เก็บกลุ่มควบคุมและกลุ่มเสี่ยงให้จำนวนใกล้เคียงกัน</li>
+        <li>บันทึกอายุและเพศไว้นอกระบบด้วย เพื่อควบคุมตัวกวนตอนวิเคราะห์</li>
+      </ul>
+    </div>
+  </div>
+
+</section>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

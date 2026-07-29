@@ -7,6 +7,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, File, Form, Query, UploadFile, status
 
 from app.dependencies import (
+    CurrentUserDep,
     HistoryRepositoryDep,
     PipelineDep,
     PredictorDep,
@@ -211,6 +212,7 @@ def predict_from_features(
     summary="List previous risk assessments",
 )
 def list_history(
+    user: CurrentUserDep,
     history_repository: HistoryRepositoryDep,
     limit: Annotated[int, Query(ge=1, le=500, description="Page size.")] = 50,
     offset: Annotated[int, Query(ge=0, description="Number of records to skip.")] = 0,
@@ -231,7 +233,9 @@ def list_history(
     """
     records = history_repository.list(limit=limit, offset=offset, subject_id=subject_id)
     return HistoryListResponse(
-        total=history_repository.count(),
+        # The total must honour the filter, otherwise paging past the last
+        # filtered page shows an empty table with a stale "of N" count.
+        total=history_repository.count(subject_id=subject_id),
         limit=limit,
         offset=offset,
         items=[record.to_dict() for record in records],
@@ -245,6 +249,7 @@ def list_history(
     responses={400: {"model": ErrorResponse, "description": "The confirmation flag is missing."}},
 )
 def clear_history(
+    user: CurrentUserDep,
     history_repository: HistoryRepositoryDep,
     confirm: Annotated[
         bool,
@@ -297,6 +302,7 @@ def clear_history(
 )
 def delete_history_item(
     record_id: int,
+    user: CurrentUserDep,
     history_repository: HistoryRepositoryDep,
 ) -> HistoryDeleteResponse:
     """Delete one stored assessment by primary key.

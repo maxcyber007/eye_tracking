@@ -139,6 +139,19 @@
 
   // ─── โหมดนักวิจัย: สถานะชุดข้อมูลและการเทรน ─────────────────────────────
   /**
+   * ส่งผู้ใช้ไปหน้าเข้าสู่ระบบ เมื่อ backend ตอบ 401
+   *
+   * โหมดนักวิจัยต้องล็อกอิน เพราะทั้งการเขียน dataset และการอ่านผลย้อนหลัง
+   * เป็นข้อมูลของผู้เข้าร่วมหลายคน
+   *
+   * @returns {void}
+   */
+  function requireLogin() {
+    const target = encodeURIComponent(location.pathname + location.search);
+    location.href = `dashboard.html?next=${target}`;
+  }
+
+  /**
    * ดึงสถานะชุดข้อมูลและโมเดลจาก GET /api/train/status แล้วแสดงบนแผงควบคุม
    * @returns {Promise<void>}
    */
@@ -150,6 +163,10 @@
 
     try {
       const response = await fetch(apiUrl("/api/train/status"));
+      if (response.status === 401) {
+        requireLogin();
+        return;
+      }
       const body = await response.json();
       const dataset = body.dataset || {};
       const model = body.model || {};
@@ -430,6 +447,10 @@
       });
       renderResult(body);
     } catch (payload) {
+      if (payload?.error === "UnauthorizedError") {
+        requireLogin();
+        return;
+      }
       renderError(payload);
     }
   }
@@ -539,84 +560,6 @@
     show("error");
   }
 
-  // ─── ประวัติ ────────────────────────────────────────────────────────────
-  /**
-   * ดึงและแสดงผลย้อนหลังจาก GET /api/history
-   * @returns {Promise<void>}
-   */
-  async function loadHistory() {
-    const container = $("historyList");
-    container.innerHTML = '<div class="empty">กำลังโหลด…</div>';
-    if (!$("screen-history").classList.contains("active")) $("historyNotice").hidden = true;
-    show("history");
-
-    try {
-      const response = await fetch(apiUrl("/api/history?limit=25"));
-      const body = await response.json();
-      const items = body.items || [];
-      if (!items.length) {
-        container.innerHTML = '<div class="empty">ยังไม่มีผลการทดสอบ</div>';
-        return;
-      }
-      container.innerHTML = items
-        .map((item) => {
-          const when = new Date(item.created_at).toLocaleString("th-TH", {
-            dateStyle: "short",
-            timeStyle: "short",
-          });
-          return `<div class="history-item">
-            <div class="meta">
-              <b>${item.subject_id || "ไม่ระบุรหัส"}</b>
-              <span>${when}</span>
-            </div>
-            <div class="val">
-              <b class="level-${item.risk_level}">${Number(item.risk_score).toFixed(2)}</b>
-              <span class="level-${item.risk_level}">${item.risk_level}</span>
-            </div>
-          </div>`;
-        })
-        .join("");
-    } catch {
-      container.innerHTML = '<div class="empty">โหลดประวัติไม่สำเร็จ</div>';
-    }
-  }
-
-  /**
-   * ล้างผลย้อนหลังทั้งหมด หลังยืนยันกับผู้ใช้
-   *
-   * ลบเฉพาะบันทึกการทำนายเท่านั้น ชุดข้อมูลเทรนและโมเดลไม่ถูกแตะต้อง
-   *
-   * @returns {Promise<void>}
-   */
-  async function clearHistory() {
-    const confirmed = window.confirm(
-      "ล้างผลย้อนหลังทั้งหมด?\n\n" +
-      "ลบเฉพาะบันทึกการทำนาย (test_history)\n" +
-      "ชุดข้อมูลเทรน dataset.csv และโมเดลจะไม่ถูกลบ\n\n" +
-      "การกระทำนี้ย้อนกลับไม่ได้",
-    );
-    if (!confirmed) return;
-
-    const notice = $("historyNotice");
-    const button = $("btnClearHistory");
-    button.disabled = true;
-
-    try {
-      const response = await fetch(apiUrl("/api/history?confirm=true"), { method: "DELETE" });
-      const body = await response.json();
-      notice.hidden = false;
-      notice.className = response.ok ? "status ok" : "status bad";
-      notice.textContent = body.message || body.error || "ไม่ทราบผลลัพธ์";
-      if (response.ok) await loadHistory();
-    } catch (err) {
-      notice.hidden = false;
-      notice.className = "status bad";
-      notice.textContent = "ติดต่อเซิร์ฟเวอร์ไม่ได้: " + err.message;
-    } finally {
-      button.disabled = false;
-    }
-  }
-
   // ─── การผูก event ───────────────────────────────────────────────────────
   /** อ่านค่าจากฟอร์มตั้งค่าเข้าสู่ state */
   function readSettings() {
@@ -696,13 +639,6 @@
     show("intro");
   });
 
-  $("btnHistoryFromIntro").addEventListener("click", () => {
-    readSettings();
-    loadHistory();
-  });
-  $("btnHistoryFromResult").addEventListener("click", loadHistory);
-  $("btnBackFromHistory").addEventListener("click", () => show("intro"));
-  $("btnClearHistory").addEventListener("click", clearHistory);
 
   // ปล่อยกล้องเมื่อออกจากหน้า เพื่อไม่ให้ไฟกล้องค้าง
   window.addEventListener("pagehide", closeCamera);

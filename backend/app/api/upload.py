@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, UploadFile, status
 
 from app.dependencies import (
+    CurrentUserDep,
     HistoryRepositoryDep,
     PipelineDep,
     SettingsDep,
@@ -32,6 +33,7 @@ router = APIRouter(tags=["upload"])
     },
 )
 async def upload_video(
+    user: CurrentUserDep,
     settings: SettingsDep,
     pipeline: PipelineDep,
     history_repository: HistoryRepositoryDep,

@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, status
 
 from app.ai.base import available_models
-from app.dependencies import DatasetRepositoryDep, PredictorDep, TrainerDep
+from app.dependencies import CurrentUserDep, DatasetRepositoryDep, PredictorDep, TrainerDep
 from app.logging_config import get_logger
 from app.schemas import ErrorResponse, TrainRequest, TrainResponse
 
@@ -28,6 +28,7 @@ router = APIRouter(tags=["train"])
     },
 )
 def train(
+    user: CurrentUserDep,
     trainer: TrainerDep,
     predictor: PredictorDep,
     payload: TrainRequest | None = None,
@@ -88,6 +89,7 @@ def train(
     summary="Inspect the dataset and the currently trained model",
 )
 def training_status(
+    user: CurrentUserDep,
     dataset_repository: DatasetRepositoryDep,
     predictor: PredictorDep,
 ) -> dict[str, Any]:

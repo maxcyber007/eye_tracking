@@ -323,6 +323,43 @@ class HistoryListResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Authentication                                                              #
+# --------------------------------------------------------------------------- #
+class LoginRequest(BaseModel):
+    """Credentials submitted by the dashboard login form."""
+
+    username: str = Field(min_length=1, max_length=64, description="Login name.")
+    password: str = Field(min_length=1, max_length=256, description="Plain text password.")
+
+
+class UserPayload(BaseModel):
+    """Safe representation of an account; never carries a password."""
+
+    id: int = Field(description="Primary key of the account.")
+    username: str = Field(description="Login name.")
+    display_name: str = Field(description="Human readable name.")
+    role: str = Field(description="Coarse role label.")
+    created_at: str = Field(description="ISO-8601 UTC creation timestamp.")
+    last_login_at: str | None = Field(default=None, description="Last successful sign-in.")
+
+
+class LoginResponse(BaseModel):
+    """Result of a successful sign-in."""
+
+    success: bool = Field(default=True, description="Always true on success.")
+    message: str = Field(description="Human readable greeting.")
+    user: UserPayload = Field(description="The signed-in account.")
+    expires_at: str = Field(description="ISO-8601 UTC expiry of the new session.")
+
+
+class LogoutResponse(BaseModel):
+    """Result of ending a session."""
+
+    success: bool = Field(default=True, description="Always true.")
+    message: str = Field(description="Human readable confirmation.")
+
+
+# --------------------------------------------------------------------------- #
 # Errors                                                                      #
 # --------------------------------------------------------------------------- #
 class ErrorResponse(BaseModel):

@@ -63,6 +63,18 @@ class NotFoundError(EyeTrackingError):
     status_code = 404
 
 
+class UnauthorizedError(EyeTrackingError):
+    """Raised when a protected endpoint is reached without a valid session."""
+
+    status_code = 401
+
+
+class ForbiddenError(EyeTrackingError):
+    """Raised when a signed-in account lacks the required role."""
+
+    status_code = 403
+
+
 class InvalidVideoError(EyeTrackingError):
     """Raised when an uploaded file is missing, empty, too large or unsupported."""
 

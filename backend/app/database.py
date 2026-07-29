@@ -201,12 +201,20 @@ class Database:
     def init_schema(self) -> None:
         """Create the schema when it does not exist yet.
 
+        The authentication tables live in :mod:`app.auth` and are created here
+        too, so a single call leaves the database fully usable.  The import is
+        local to avoid a circular import at module load time.
+
         Returns:
             None
         """
         with self.connect() as connection:
             connection.execute(CREATE_TEST_HISTORY_SQL)
             connection.execute(CREATE_TEST_HISTORY_INDEX_SQL)
+
+        from app.auth import init_auth_schema
+
+        init_auth_schema(self)
         logger.info("SQLite schema ready at %s", self.path)
 
     def healthy(self) -> bool:
@@ -349,14 +357,23 @@ class TestHistoryRepository:
             ).fetchone()
         return TestHistoryRecord.from_row(row) if row else None
 
-    def count(self) -> int:
-        """Count the stored assessments.
+    def count(self, *, subject_id: str | None = None) -> int:
+        """Count the stored assessments, optionally for one participant.
+
+        Args:
+            subject_id: When given, only that participant's rows are counted.
 
         Returns:
-            int: Total number of rows in ``test_history``.
+            int: Number of matching rows in ``test_history``.
         """
         with self.database.connect() as connection:
-            row = connection.execute("SELECT COUNT(*) AS total FROM test_history").fetchone()
+            if subject_id:
+                row = connection.execute(
+                    "SELECT COUNT(*) AS total FROM test_history WHERE subject_id = ?",
+                    (subject_id,),
+                ).fetchone()
+            else:
+                row = connection.execute("SELECT COUNT(*) AS total FROM test_history").fetchone()
         return int(row["total"]) if row else 0
 
     def delete(self, record_id: int) -> bool:

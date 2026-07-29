@@ -11,16 +11,17 @@ import json
 from pathlib import Path
 from typing import Annotated, Any, Sequence
 
-from fastapi import Depends, UploadFile
+from fastapi import Depends, Request, UploadFile
 
 from app.ai import utils
 from app.ai.feature_engineering import DatasetRepository
 from app.ai.pipeline import EyeTrackingPipeline
 from app.ai.predict_model import RiskPredictor, get_predictor
 from app.ai.train_model import ModelTrainer
+from app.auth import SessionRepository, User, UserRepository
 from app.config import Settings, get_settings
 from app.database import Database, TestHistoryRepository, get_database
-from app.exceptions import InvalidVideoError
+from app.exceptions import InvalidVideoError, UnauthorizedError
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -69,6 +70,98 @@ def provide_history_repository(database: DatabaseDep) -> TestHistoryRepository:
 
 
 HistoryRepositoryDep = Annotated[TestHistoryRepository, Depends(provide_history_repository)]
+
+
+def provide_user_repository(database: DatabaseDep) -> UserRepository:
+    """Provide the user account repository.
+
+    Args:
+        database: Injected database handle.
+
+    Returns:
+        UserRepository: Repository bound to the shared database.
+    """
+    return UserRepository(database)
+
+
+UserRepositoryDep = Annotated[UserRepository, Depends(provide_user_repository)]
+
+
+def provide_session_repository(database: DatabaseDep, settings: SettingsDep) -> SessionRepository:
+    """Provide the session token repository.
+
+    Args:
+        database: Injected database handle.
+        settings: Injected application settings.
+
+    Returns:
+        SessionRepository: Repository bound to the shared database.
+    """
+    return SessionRepository(database, settings)
+
+
+SessionRepositoryDep = Annotated[SessionRepository, Depends(provide_session_repository)]
+
+
+def read_session_token(request: Request, settings: Settings) -> str | None:
+    """Extract the session token from the cookie or the Authorization header.
+
+    The cookie is what the dashboard uses; the bearer header exists so scripts
+    and integration tests can authenticate without a cookie jar.
+
+    Args:
+        request: Incoming request.
+        settings: Application settings supplying the cookie name.
+
+    Returns:
+        str | None: The raw token, or ``None`` when the request carries none.
+    """
+    cookie = request.cookies.get(settings.session_cookie_name)
+    if cookie:
+        return cookie
+
+    header = request.headers.get("Authorization", "")
+    if header.lower().startswith("bearer "):
+        return header[7:].strip() or None
+    return None
+
+
+def provide_current_user(
+    request: Request,
+    settings: SettingsDep,
+    sessions: SessionRepositoryDep,
+) -> User:
+    """Resolve the signed-in account, rejecting the request when absent.
+
+    Args:
+        request: Incoming request.
+        settings: Injected application settings.
+        sessions: Injected session repository.
+
+    Returns:
+        User: The signed-in account.  When ``auth_enabled`` is false a synthetic
+        account is returned so the API stays usable in a trusted environment.
+
+    Raises:
+        UnauthorizedError: When no valid session accompanies the request.
+    """
+    if not settings.auth_enabled:
+        return User(
+            id=0,
+            username="anonymous",
+            display_name="Authentication disabled",
+            role="admin",
+            is_active=True,
+            created_at=utils.utc_now_iso(),
+        )
+
+    user = sessions.resolve(read_session_token(request, settings) or "")
+    if user is None:
+        raise UnauthorizedError("กรุณาเข้าสู่ระบบก่อนใช้งานส่วนนี้")
+    return user
+
+
+CurrentUserDep = Annotated[User, Depends(provide_current_user)]
 
 
 def provide_predictor(settings: SettingsDep) -> RiskPredictor:

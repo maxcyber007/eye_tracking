@@ -78,6 +78,18 @@ class Settings(BaseSettings):
 
     database_url: str = Field(default=f"sqlite:///{BACKEND_ROOT / 'app' / 'eye_tracking.db'}")
 
+    # ----------------------------------------------------------------- auth --
+    auth_enabled: bool = True
+    admin_username: str = "admin"
+    #: Leave empty to have a strong password generated and logged on first start.
+    admin_password: str = ""
+    admin_display_name: str = "ผู้ดูแลระบบ"
+    session_ttl_minutes: int = 720
+    session_cookie_name: str = "eyetrack_session"
+    #: Must be True behind HTTPS in production; False allows plain-HTTP localhost.
+    session_cookie_secure: bool = False
+    session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+
     # -------------------------------------------------------------- logging --
     log_level: str = "INFO"
     log_format: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"

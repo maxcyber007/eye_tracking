@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import build_api_router, health
+from app.auth import ensure_initial_admin
 from app.config import Settings, get_settings
 from app.database import init_database
 from app.exceptions import EyeTrackingError
@@ -45,7 +46,9 @@ async def lifespan(application: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting %s v%s (%s)", settings.app_name, settings.app_version, settings.environment)
 
     settings.ensure_directories()
-    init_database(settings)
+    database = init_database(settings)
+    if settings.auth_enabled:
+        ensure_initial_admin(database, settings)
 
     logger.info("Upload dir : %s", settings.upload_dir)
     logger.info("Model path : %s", settings.model_path)
