@@ -31,6 +31,128 @@ trips people up late.
 
 ---
 
+## Putting it on a domain
+
+The app is designed to sit behind a TLS-terminating reverse proxy. `GET /`
+redirects to `/ui/`, so the bare domain lands on the assessment page — set
+`ROOT_REDIRECT_TO_UI=false` if you would rather keep the liveness JSON there.
+
+The redirect is relative, so the app never needs to know its public scheme or
+hostname, and nothing else in it derives behaviour from the request scheme.
+
+Whichever proxy you use, three things must be true:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `SESSION_COOKIE_SECURE` | `true` | The session cookie must never travel in clear text |
+| `CORS_ALLOW_ORIGINS` | your origin | Stop being a wildcard once you have a real domain |
+| Proxy upload limit | ≥ `MAX_UPLOAD_SIZE_MB` | Recordings are tens of MB; the default 1 MB in Nginx will reject them |
+
+That last row is the one that bites: the proxy rejects the upload before the
+app ever sees it, and the browser only reports a generic failure.
+
+Assuming the container publishes `8182` on the Docker host:
+
+### Nginx Proxy Manager
+
+**Hosts → Proxy Hosts → Add Proxy Host**
+
+- *Domain Names*: `myeye.itdev.cmtc.ac.th`
+- *Scheme*: `http`, *Forward Hostname*: the Docker host IP (or `myeye` if NPM
+  shares a Docker network with the container), *Forward Port*: `8182`
+- *Block Common Exploits*: on
+- *Websockets Support*: on
+- **SSL** tab: request a Let's Encrypt certificate, then turn on *Force SSL*
+  and *HTTP/2 Support*
+- **Advanced** tab:
+
+```nginx
+client_max_body_size 250M;
+proxy_read_timeout 300s;
+proxy_send_timeout 300s;
+```
+
+### Caddy
+
+```caddyfile
+myeye.itdev.cmtc.ac.th {
+    reverse_proxy 127.0.0.1:8182
+    request_body {
+        max_size 250MB
+    }
+}
+```
+
+Caddy obtains and renews the certificate on its own; nothing else to configure.
+
+### Traefik (labels on the service)
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.myeye.rule=Host(`myeye.itdev.cmtc.ac.th`)"
+  - "traefik.http.routers.myeye.entrypoints=websecure"
+  - "traefik.http.routers.myeye.tls.certresolver=letsencrypt"
+  - "traefik.http.services.myeye.loadbalancer.server.port=8000"
+```
+
+With Traefik on the same Docker network you can drop the `ports:` block
+entirely, so nothing is exposed on the host at all.
+
+### Plain Nginx
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name myeye.itdev.cmtc.ac.th;
+
+    ssl_certificate     /etc/letsencrypt/live/myeye.itdev.cmtc.ac.th/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/myeye.itdev.cmtc.ac.th/privkey.pem;
+
+    # Recordings are large; the 1 MB default would reject every upload.
+    client_max_body_size 250M;
+    # Feature extraction can take a minute on a long clip.
+    proxy_read_timeout 300s;
+
+    location / {
+        proxy_pass http://127.0.0.1:8182;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 80;
+    server_name myeye.itdev.cmtc.ac.th;
+    return 301 https://$host$request_uri;
+}
+```
+
+### After the certificate is live
+
+Set these in the Portainer stack and redeploy:
+
+```
+SESSION_COOKIE_SECURE=true
+CORS_ALLOW_ORIGINS=https://myeye.itdev.cmtc.ac.th
+```
+
+Then check:
+
+| URL | Expected |
+| --- | --- |
+| `https://myeye.itdev.cmtc.ac.th` | the assessment page (redirected from `/`) |
+| `https://myeye.itdev.cmtc.ac.th/ui/login/` | the sign-in page |
+| `https://myeye.itdev.cmtc.ac.th/health` | `{"status":"ok", ...}` |
+
+Sign in, then run one real assessment end to end. Uploading an actual recording
+is the only way to prove the proxy's body-size and timeout limits are right —
+the pages all load fine even when they are not.
+
+---
+
 ## Deploy through Portainer
 
 ### Option A — Repository (recommended)

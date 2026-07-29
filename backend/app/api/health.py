@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from fastapi.responses import RedirectResponse
 
 from app.ai.base import available_models
 from app.dependencies import (
@@ -20,16 +21,31 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["health"])
 
 
-@router.get("/", response_model=RootResponse, summary="Service liveness probe")
-def read_root(settings: SettingsDep) -> RootResponse:
-    """Return a minimal liveness payload.
+@router.get(
+    "/",
+    response_model=None,
+    summary="Redirect to the web client, or return a liveness payload",
+)
+def read_root(settings: SettingsDep) -> RootResponse | RedirectResponse:
+    """Send visitors to the web client, or report liveness.
+
+    When the client is served and ``root_redirect_to_ui`` is on, a bare domain
+    such as ``https://myeye.example.ac.th/`` lands on the assessment page
+    instead of a JSON blob. The redirect is relative, so it works behind a
+    reverse proxy without the app needing to know its public scheme or host.
+
+    ``/health`` is unaffected and remains the endpoint to probe for monitoring.
 
     Args:
         settings: Injected application settings.
 
     Returns:
-        RootResponse: Service name, version and documentation URL.
+        RootResponse | RedirectResponse: The liveness payload, or a redirect to
+        the mounted client.
     """
+    if settings.root_redirect_to_ui and settings.serve_frontend:
+        return RedirectResponse(f"{settings.frontend_mount_path.rstrip('/')}/", status_code=307)
+
     return RootResponse(
         status="ok",
         app=settings.app_name,
