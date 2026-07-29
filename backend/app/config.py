@@ -11,10 +11,18 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+# pydantic-settings JSON-decodes complex fields (list, dict) inside the settings
+# source, before any field validator runs.  That would reject friendly values
+# such as ``CORS_ALLOW_ORIGINS=*`` outright.  ``NoDecode`` hands the raw string
+# to our own validators instead, which accept both JSON and comma separated
+# lists.
+CsvList = Annotated[list[str], NoDecode]
+JsonMapping = Annotated[dict[str, Any], NoDecode]
 
 # Directory that contains the ``app`` package (``backend/``).
 BACKEND_ROOT: Path = Path(__file__).resolve().parent.parent
@@ -56,10 +64,10 @@ class Settings(BaseSettings):
     openapi_url: str = "/openapi.json"
     api_prefix: str = "/api"
 
-    cors_allow_origins: list[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_origins: CsvList = Field(default_factory=lambda: ["*"])
     cors_allow_credentials: bool = False
-    cors_allow_methods: list[str] = Field(default_factory=lambda: ["*"])
-    cors_allow_headers: list[str] = Field(default_factory=lambda: ["*"])
+    cors_allow_methods: CsvList = Field(default_factory=lambda: ["*"])
+    cors_allow_headers: CsvList = Field(default_factory=lambda: ["*"])
 
     # ---------------------------------------------------------------- paths --
     base_dir: Path = Field(default=BACKEND_ROOT)
@@ -97,7 +105,7 @@ class Settings(BaseSettings):
     log_filename: str = "app.log"
 
     # ---------------------------------------------------------------- video --
-    allowed_video_extensions: list[str] = Field(
+    allowed_video_extensions: CsvList = Field(
         default_factory=lambda: [".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"]
     )
     max_upload_size_mb: float = 200.0
@@ -124,7 +132,7 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------ ml model --
     model_type: str = "random_forest"
-    feature_columns: list[str] = Field(
+    feature_columns: CsvList = Field(
         default_factory=lambda: [
             "eye_velocity",
             "eye_acceleration",
@@ -143,7 +151,7 @@ class Settings(BaseSettings):
     test_size: float = 0.2
     random_state: int = 42
     cv_folds: int = 5
-    model_params: dict[str, Any] = Field(
+    model_params: JsonMapping = Field(
         default_factory=lambda: {
             "n_estimators": 300,
             "max_depth": None,
@@ -157,7 +165,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------- risk thresholds --
     risk_threshold_low: float = 0.34
     risk_threshold_moderate: float = 0.67
-    risk_level_labels: list[str] = Field(default_factory=lambda: ["Low", "Moderate", "High"])
+    risk_level_labels: CsvList = Field(default_factory=lambda: ["Low", "Moderate", "High"])
 
     # ------------------------------------------------------------ validators --
     @field_validator(

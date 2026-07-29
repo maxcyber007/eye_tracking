@@ -40,6 +40,11 @@ logger = get_logger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
+#: Dedicated account created for the run, so the test never needs the real
+#: admin password and never leaves a usable login behind.
+TEST_USERNAME = "smoketest"
+TEST_PASSWORD = "smoke-test-password-9f2a"
+
 
 class CheckReporter:
     """Collects pass/fail results and prints them as a readable checklist.
@@ -162,6 +167,63 @@ def synthetic_trajectory(frames: int, fps: int) -> list[dict[str, float]]:
     ]
 
 
+def check_env_example(reporter: CheckReporter) -> None:
+    """Verify that ``.env.example`` actually loads as a settings file.
+
+    This guards a real failure mode: pydantic-settings JSON-decodes complex
+    fields inside the settings source, so a friendly value like
+    ``CORS_ALLOW_ORIGINS=*`` raises before any validator runs.  Copying the
+    example to ``.env`` then breaks start-up, which no other check catches
+    because the tests otherwise run on the built-in defaults.
+
+    Args:
+        reporter: Collector for the individual check results.
+
+    Returns:
+        None
+    """
+    from pydantic_settings import SettingsConfigDict
+
+    from app.config import Settings
+
+    example = BACKEND_ROOT / ".env.example"
+    if not reporter.check(".env.example exists", example.is_file()):
+        return
+
+    class ExampleSettings(Settings):
+        """Settings bound to ``.env.example`` instead of ``.env``."""
+
+        model_config = SettingsConfigDict(
+            env_file=str(example),
+            env_file_encoding="utf-8",
+            extra="ignore",
+            case_sensitive=False,
+            protected_namespaces=(),
+        )
+
+    try:
+        loaded = ExampleSettings()
+    except Exception as exc:  # noqa: BLE001 - the point is to report any failure
+        reporter.check(".env.example loads without error", False, f"{type(exc).__name__}: {exc}")
+        return
+
+    reporter.check(".env.example loads without error", True)
+    reporter.check(
+        "list settings parse from comma separated values",
+        loaded.cors_allow_origins == ["*"] and len(loaded.allowed_video_extensions) >= 4,
+        f"origins={loaded.cors_allow_origins}",
+    )
+    reporter.check(
+        "feature columns match the model contract",
+        len(loaded.feature_columns) == 10,
+        f"{len(loaded.feature_columns)} features",
+    )
+    reporter.check(
+        "model params parse from JSON",
+        isinstance(loaded.model_params, dict) and "n_estimators" in loaded.model_params,
+    )
+
+
 def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
     """Drive the API through the full workflow and record the outcomes.
 
@@ -175,14 +237,52 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
     """
     frames, fps = 150, 30
 
-    print("\n1. Health endpoints")
+    print("\n1. Configuration")
+    check_env_example(reporter)
+
+    print("\n2. Health endpoints")
     response = client.get("/")
     reporter.check("GET / returns 200", response.status_code == 200)
     response = client.get("/health")
     reporter.check("GET /health returns 200", response.status_code == 200)
     reporter.check("SQLite is reachable", response.json().get("database") is True)
 
-    print("\n2. Failure paths before training")
+    print("\n3. Authentication")
+    settings = get_settings()
+    if settings.auth_enabled:
+        for method, path in [
+            ("GET", "/api/history"),
+            ("GET", "/api/train/status"),
+            ("POST", "/api/train"),
+        ]:
+            response = client.request(method, path, json={} if method == "POST" else None)
+            reporter.check(
+                f"{method} {path} requires a session",
+                response.status_code == 401,
+                response.json().get("error", ""),
+            )
+
+        response = client.post(
+            "/api/auth/login", json={"username": TEST_USERNAME, "password": "wrong-password"}
+        )
+        reporter.check("Login rejects a wrong password", response.status_code == 401)
+
+        response = client.post(
+            "/api/auth/login", json={"username": TEST_USERNAME, "password": TEST_PASSWORD}
+        )
+        signed_in = reporter.check(
+            "Login succeeds with the correct password", response.status_code == 200
+        )
+        if not signed_in:
+            return
+        reporter.check(
+            "GET /api/auth/me returns the account",
+            client.get("/api/auth/me").status_code == 200,
+        )
+    else:
+        reporter.check("Authentication is disabled by configuration", True, "AUTH_ENABLED=false")
+
+    print("\n4. Failure paths before training")
     response = client.post("/api/train", json={})
     reporter.check(
         "POST /api/train without a dataset returns 400",
@@ -202,7 +302,7 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
         response.json().get("error", ""),
     )
 
-    print("\n3. Dataset generation and training")
+    print("\n5. Dataset generation and training")
     generated = subprocess.run(
         [sys.executable, "scripts/generate_synthetic_dataset.py", "--samples", "120", "--seed", "7"],
         cwd=BACKEND_ROOT,
@@ -229,7 +329,7 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
             Path(response.json()["model_path"]).exists(),
         )
 
-    print("\n4. Computer-vision pipeline")
+    print("\n6. Computer-vision pipeline")
     trajectory = json.dumps(synthetic_trajectory(frames, fps))
     with video.open("rb") as handle:
         response = client.post(
@@ -272,7 +372,7 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
     )
     reporter.check("A prediction was returned", payload.get("prediction") is not None)
 
-    print("\n5. Prediction and history")
+    print("\n7. Prediction and history")
     response = client.post("/api/predict", data={"filename": payload["filename"]})
     predicted = reporter.check("POST /api/predict returns 200", response.status_code == 200)
     if predicted:
@@ -300,9 +400,30 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
         f"total={response.json().get('total')}",
     )
 
-    print("\n6. OpenAPI document")
+    print("\n8. OpenAPI document")
     response = client.get("/openapi.json")
     reporter.check("GET /openapi.json returns 200", response.status_code == 200)
+
+
+
+def ensure_test_account() -> None:
+    """Create the dedicated smoke-test account, replacing any stale one.
+
+    Creating the account directly through the repository keeps the run
+    independent of the generated admin password, and the account disappears with
+    the database during cleanup.
+
+    Returns:
+        None
+    """
+    from app.auth import UserRepository
+    from app.database import get_database
+
+    repository = UserRepository(get_database())
+    if repository.get_by_username(TEST_USERNAME) is None:
+        repository.create(TEST_USERNAME, TEST_PASSWORD, display_name="Smoke test", role="admin")
+    else:
+        repository.set_password(TEST_USERNAME, TEST_PASSWORD)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -370,6 +491,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n0. Synthetic recording: {video.stat().st_size / 1024:.0f} KB")
 
         with TestClient(app) as client:
+            ensure_test_account()
             run_checks(client, video, reporter)
 
     if not args.keep_artifacts:
