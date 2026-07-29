@@ -75,7 +75,11 @@ class Settings(BaseSettings):
     model_dir: Path = Field(default=BACKEND_ROOT / "app" / "models")
     dataset_dir: Path = Field(default=BACKEND_ROOT / "dataset")
     log_dir: Path = Field(default=BACKEND_ROOT / "logs")
-    frontend_dir: Path = Field(default=BACKEND_ROOT / "frontend")
+    #: Built Next.js export. Produced by `npm run build` inside `frontend/`.
+    frontend_dir: Path = Field(default=BACKEND_ROOT / "frontend" / "out")
+    #: Dependency-free client served when the Next.js build is absent, so the
+    #: system is never unusable just because Node has not been run.
+    frontend_fallback_dir: Path = Field(default=BACKEND_ROOT / "frontend-legacy")
 
     serve_frontend: bool = True
     frontend_mount_path: str = "/ui"

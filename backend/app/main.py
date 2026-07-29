@@ -224,13 +224,16 @@ def mount_frontend(application: FastAPI, settings: Settings) -> None:
     """Serve the bundled web client from the configured mount path.
 
     Serving the client from the API process keeps deployment to a single
-    command and removes cross-origin requests entirely.  The mount is skipped
-    silently when disabled or when the directory is absent, so an API-only
-    deployment needs no code change.
+    command and removes cross-origin requests entirely, which is what lets the
+    HttpOnly session cookie work without CORS credentials.
+
+    The Next.js build is preferred; when it is missing the dependency-free
+    fallback client is served instead, so a checkout that has never run
+    ``npm run build`` still has a working UI rather than a 404.
 
     Args:
         application: Application to mount the static files on.
-        settings: Settings supplying the directory and the mount path.
+        settings: Settings supplying the directories and the mount path.
 
     Returns:
         None
@@ -239,17 +242,36 @@ def mount_frontend(application: FastAPI, settings: Settings) -> None:
         logger.info("Frontend serving is disabled (SERVE_FRONTEND=false)")
         return
 
-    directory = settings.frontend_dir
-    if not directory.is_dir() or not (directory / "index.html").is_file():
-        logger.warning("Frontend directory %s has no index.html; skipping mount", directory)
-        return
+    candidates = [
+        (settings.frontend_dir, "Next.js build"),
+        (settings.frontend_fallback_dir, "fallback client"),
+    ]
+    for directory, description in candidates:
+        if directory.is_dir() and (directory / "index.html").is_file():
+            application.mount(
+                settings.frontend_mount_path,
+                StaticFiles(directory=directory, html=True),
+                name="frontend",
+            )
+            logger.info(
+                "Frontend (%s) mounted at %s from %s",
+                description,
+                settings.frontend_mount_path,
+                directory,
+            )
+            if description != "Next.js build":
+                logger.warning(
+                    "Serving the fallback client. Run `npm install && npm run build` "
+                    "in %s for the full dashboard.",
+                    settings.frontend_dir.parent,
+                )
+            return
 
-    application.mount(
-        settings.frontend_mount_path,
-        StaticFiles(directory=directory, html=True),
-        name="frontend",
+    logger.warning(
+        "No web client found in %s or %s; only the API is served.",
+        settings.frontend_dir,
+        settings.frontend_fallback_dir,
     )
-    logger.info("Frontend mounted at %s from %s", settings.frontend_mount_path, directory)
 
 
 #: ASGI application consumed by ``uvicorn app.main:app``.

@@ -1,0 +1,48 @@
+import type { PursuitPattern, RiskLevel } from "@/lib/types";
+
+/** Human readable name and unit for every model feature. */
+export const FEATURE_LABELS: Record<string, { label: string; unit: string }> = {
+  eye_velocity: { label: "ความเร็วเฉลี่ยของสายตา", unit: "หน่วยตา/วินาที" },
+  eye_acceleration: { label: "ความเร่งเฉลี่ย", unit: "หน่วยตา/วินาที²" },
+  eye_distance: { label: "ระยะห่างระหว่างตา", unit: "สัดส่วนของความกว้างภาพ" },
+  movement_smoothness: { label: "ความราบรื่นของการเคลื่อนไหว", unit: "ค่าสูง = ราบรื่นกว่า" },
+  blink_rate: { label: "อัตราการกะพริบตา", unit: "ครั้ง/นาที" },
+  fixation_time: { label: "เวลาที่จ้องนิ่ง", unit: "วินาที" },
+  total_distance: { label: "ระยะทางรวมที่สายตาเคลื่อนที่", unit: "หน่วยตา" },
+  average_velocity: { label: "ความเร็วเฉลี่ยตลอดการทดสอบ", unit: "หน่วยตา/วินาที" },
+  max_velocity: { label: "ความเร็วสูงสุด", unit: "หน่วยตา/วินาที" },
+  tracking_error: { label: "ความคลาดเคลื่อนจากเป้าหมาย", unit: "ค่าต่ำ = ตามได้แม่นกว่า" },
+};
+
+/** Thai copy for each risk band, matching the backend's labels. */
+export const RISK_LABELS: Record<RiskLevel, string> = {
+  Low: "ความเสี่ยงต่ำ",
+  Moderate: "ความเสี่ยงปานกลาง",
+  High: "ความเสี่ยงสูง",
+};
+
+/** Recovery hints keyed by the backend's error class names. */
+export const ERROR_HINTS: Record<string, string> = {
+  ModelNotTrainedError:
+    "ยังไม่มีโมเดลบนเซิร์ฟเวอร์ ผู้ดูแลระบบต้องเก็บข้อมูลให้ครบทั้งสองกลุ่มแล้วกดเทรนก่อน",
+  NoFaceDetectedError:
+    "ระบบตรวจไม่พบใบหน้าในหลายเฟรม ลองย้ายไปที่ที่สว่างขึ้น ไม่ย้อนแสง และจัดให้ใบหน้าอยู่เต็มกรอบตลอดการทดสอบ",
+  InvalidVideoError:
+    "ไฟล์วิดีโอไม่ผ่านการตรวจสอบ อาจมีขนาดใหญ่เกินไปหรือสกุลไฟล์ไม่รองรับ ลองลดระยะเวลาการทดสอบ",
+  VideoProcessingError:
+    "เซิร์ฟเวอร์ถอดรหัสวิดีโอไม่ได้ อาจเป็นเพราะ codec ที่เบราว์เซอร์นี้ใช้ ลองเบราว์เซอร์อื่น",
+  FeatureExtractionError:
+    "การบันทึกสั้นเกินไปจนคำนวณค่าไม่ได้ ลองตั้งระยะเวลาอย่างน้อย 15 วินาที",
+  UnauthorizedError: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง",
+};
+
+/** Selectable stimulus patterns shown in the settings form. */
+export const PURSUIT_PATTERNS: { value: PursuitPattern; label: string }[] = [
+  { value: "horizontal", label: "แนวนอน — smooth pursuit" },
+  { value: "circular", label: "วงกลม" },
+  { value: "lissajous", label: "เลข 8 — Lissajous" },
+  { value: "step", label: "กระโดดเป็นจุด — saccade" },
+];
+
+/** Default page size for the assessment report. */
+export const PAGE_SIZE = 25;
