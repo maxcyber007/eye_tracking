@@ -1,0 +1,91 @@
+# =============================================================================
+# MyEye Risk API — Docker Compose stack
+#
+# Deploy in Portainer with Stacks → Add stack → Repository, pointing at this
+# repository. Portainer then has the build context and can build the image
+# itself. See DEPLOY.md for the full walkthrough, including the HTTPS
+# requirement — without it the browser will refuse to open the camera.
+# =============================================================================
+
+services:
+  myeye:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: myeye:latest
+    container_name: myeye
+    restart: unless-stopped
+
+    ports:
+      # Host:container. Put a TLS-terminating reverse proxy in front of this in
+      # production; the camera only works over HTTPS or on localhost.
+      - "${MYEYE_PORT:-8000}:8000"
+
+    environment:
+      # --- Application ---------------------------------------------------
+      ENVIRONMENT: "${ENVIRONMENT:-production}"
+      DEBUG: "false"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+
+      # --- Authentication -------------------------------------------------
+      # Set ADMIN_PASSWORD in the stack's environment variables. Leave it empty
+      # and a random password is generated and written to the container log
+      # exactly once — recoverable with `docker logs myeye`, but easy to miss.
+      AUTH_ENABLED: "true"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-admin}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      SESSION_TTL_MINUTES: "${SESSION_TTL_MINUTES:-720}"
+      # MUST be true once served over HTTPS, so the session cookie never
+      # travels in clear text. Keep false only while testing over plain HTTP.
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+
+      # --- CORS -------------------------------------------------------------
+      # The client is served from this same container, so no cross-origin
+      # request is needed. Restrict this unless another origin must call the API.
+      CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-*}"
+
+      # Storage paths are baked into the image (all under /app/data) and do
+      # not need to be repeated here.
+
+      # --- Processing limits ------------------------------------------------
+      MAX_UPLOAD_SIZE_MB: "${MAX_UPLOAD_SIZE_MB:-200}"
+      MAX_FRAMES: "${MAX_FRAMES:-3600}"
+
+    volumes:
+      # One volume for every piece of mutable state: recordings, per-frame
+      # CSVs, trained models, dataset.csv and the SQLite database.
+      #
+      # It is mounted at /app/data, deliberately outside /app/app — mounting
+      # over the package directory would hide the application code.
+      #
+      # The recordings are participant biometric data: back this volume up and
+      # delete it according to your ethics protocol.
+      - myeye-data:/app/data
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+    # Feature extraction is CPU-bound and memory-hungry; without a ceiling one
+    # long recording can starve everything else on the host.
+    deploy:
+      resources:
+        limits:
+          cpus: "${MYEYE_CPUS:-2.0}"
+          memory: "${MYEYE_MEMORY:-3g}"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  myeye-data:

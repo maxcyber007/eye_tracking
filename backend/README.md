@@ -112,6 +112,12 @@ backend/
 └── README.md
 ```
 
+## Deployment
+
+For Docker / Portainer, see [DEPLOY.md](../DEPLOY.md). Note that the camera
+requires HTTPS: a container published over plain HTTP on anything other than
+localhost will serve every page but never open the camera.
+
 ## Quick start
 
 ```bash
