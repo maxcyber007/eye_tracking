@@ -39,8 +39,8 @@ services:
       # travels in clear text. Keep false only while testing over plain HTTP.
       SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
 
-      # A bare domain lands on the assessment page instead of the liveness
-      # JSON. Set to "false" to keep the JSON at "/". /health is unaffected.
+      # A bare domain lands on the landing page instead of the liveness JSON.
+      # Set to "false" to keep the JSON at "/". /health is unaffected.
       ROOT_REDIRECT_TO_UI: "${ROOT_REDIRECT_TO_UI:-true}"
 
       # --- CORS -------------------------------------------------------------

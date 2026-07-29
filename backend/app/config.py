@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     serve_frontend: bool = True
     frontend_mount_path: str = "/ui"
     #: Send ``GET /`` to the web client instead of returning the liveness JSON,
-    #: so a bare domain lands on the assessment page. Set to false to keep the
+    #: so a bare domain lands on the landing page. Set to false to keep the
     #: JSON payload at the root. ``/health`` is unaffected either way and stays
     #: the endpoint monitoring should probe.
     root_redirect_to_ui: bool = True

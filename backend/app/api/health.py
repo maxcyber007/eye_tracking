@@ -30,9 +30,9 @@ def read_root(settings: SettingsDep) -> RootResponse | RedirectResponse:
     """Send visitors to the web client, or report liveness.
 
     When the client is served and ``root_redirect_to_ui`` is on, a bare domain
-    such as ``https://myeye.example.ac.th/`` lands on the assessment page
-    instead of a JSON blob. The redirect is relative, so it works behind a
-    reverse proxy without the app needing to know its public scheme or host.
+    such as ``https://myeye.example.ac.th/`` lands on the landing page instead
+    of a JSON blob. The redirect is relative, so it works behind a reverse
+    proxy without the app needing to know its public scheme or host.
 
     ``/health`` is unaffected and remains the endpoint to probe for monitoring.
 

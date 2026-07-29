@@ -153,7 +153,7 @@ export function Navbar({
             {
               label: "เปิดหน้าประเมิน",
               icon: <ExternalLink className="size-4" aria-hidden="true" />,
-              onSelect: () => window.open("/ui/", "_blank", "noopener"),
+              onSelect: () => window.open("/ui/assessment/", "_blank", "noopener"),
             },
             {
               label: "ออกจากระบบ",

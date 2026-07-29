@@ -34,8 +34,9 @@ trips people up late.
 ## Putting it on a domain
 
 The app is designed to sit behind a TLS-terminating reverse proxy. `GET /`
-redirects to `/ui/`, so the bare domain lands on the assessment page — set
-`ROOT_REDIRECT_TO_UI=false` if you would rather keep the liveness JSON there.
+redirects to `/ui/`, so the bare domain lands on the landing page, which links
+on to the assessment — set `ROOT_REDIRECT_TO_UI=false` if you would rather keep
+the liveness JSON there.
 
 The redirect is relative, so the app never needs to know its public scheme or
 hostname, and nothing else in it derives behaviour from the request scheme.
@@ -143,7 +144,8 @@ Then check:
 
 | URL | Expected |
 | --- | --- |
-| `https://myeye.itdev.cmtc.ac.th` | the assessment page (redirected from `/`) |
+| `https://myeye.itdev.cmtc.ac.th` | the landing page (redirected from `/`) |
+| `https://myeye.itdev.cmtc.ac.th/ui/assessment/` | the assessment itself |
 | `https://myeye.itdev.cmtc.ac.th/ui/login/` | the sign-in page |
 | `https://myeye.itdev.cmtc.ac.th/health` | `{"status":"ok", ...}` |
 
@@ -226,7 +228,9 @@ Then:
 
 1. Open `https://your-host/ui/login/` and sign in.
 2. **ภาพรวม** → collect data or seed a synthetic dataset, then **เทรนโมเดล**.
-3. `https://your-host/ui/` is the participant-facing assessment.
+3. `https://your-host/ui/` is the public landing page; its **เริ่มประเมิน**
+   button opens `https://your-host/ui/assessment/`, the participant-facing
+   assessment. Hand out either link.
 
 To seed a synthetic dataset for a demo:
 

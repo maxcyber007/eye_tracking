@@ -34,7 +34,8 @@ dependency-free client — so a checkout that has never run `npm` still works.
 ```
 src/
 ├── app/                    routes (App Router)
-│   ├── page.tsx            participant test          → /ui
+│   ├── page.tsx            public landing page       → /ui
+│   ├── assessment/         participant test          → /ui/assessment
 │   ├── login/              sign-in                   → /ui/login
 │   └── dashboard/          authenticated shell
 │       ├── page.tsx        overview + training

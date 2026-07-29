@@ -1,440 +1,424 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import Link from "next/link";
+import { motion } from "framer-motion";
 import {
-  ArrowLeft,
-  ArrowRight,
-  CalendarClock,
+  Activity,
+  Camera,
   ClipboardCheck,
   Eye,
-  FileText,
-  IdCard,
-  Lightbulb,
-  ListChecks,
-  Play,
-  ShieldAlert,
-  SlidersHorizontal,
-  Smartphone,
+  Gauge,
+  Home,
+  LayoutDashboard,
+  ScanLine,
+  ShieldCheck,
+  Sparkles,
   Stethoscope,
-  UserRound,
+  Target,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Accordion, AccordionSection } from "@/components/ui/Accordion";
-import { Alert } from "@/components/ui/Alert";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { Checkbox, Input, Select } from "@/components/ui/Input";
-import { Stepper, type Step } from "@/components/ui/Stepper";
-import { AssessmentFlow } from "@/components/assessment/AssessmentFlow";
-import { PURSUIT_PATTERNS } from "@/lib/constants";
-import type { PursuitPattern } from "@/lib/types";
-
-const STEPS: Step[] = [
-  { id: "intake", label: "ข้อมูลและการตั้งค่า", description: "ระบุผู้เข้ารับการประเมิน" },
-  { id: "consent", label: "คำชี้แจงและความยินยอม", description: "อ่านและยืนยัน" },
-  { id: "assess", label: "ทำแบบประเมิน", description: "มองตามสิ่งเร้า" },
-];
-
-const PREPARATION = [
-  { icon: Lightbulb, text: "อยู่ในที่ที่มีแสงสว่างเพียงพอ ไม่ย้อนแสง" },
-  { icon: Smartphone, text: "ถือเครื่องให้มั่นคง ห่างจากใบหน้าประมาณ 30–40 ซม." },
-  { icon: Eye, text: "ถอดแว่นที่สะท้อนแสงจ้าออก ถ้าทำได้" },
-  { icon: ShieldAlert, text: "ขยับเฉพาะดวงตา อย่าหันศีรษะตามสิ่งเร้า" },
-];
 
 /**
- * Participant-facing assessment.
+ * Public landing page.
  *
- * Laid out the way a clinical intake is: an identifying banner that stays
- * visible once filled, collapsible sections grouping the form, an explicit
- * consent gate, and only then the procedure itself. The steps are sequential
- * because the camera should not turn on before the participant has read the
- * disclaimer and agreed to it.
- *
- * There is deliberately no label field and no access to other people's
- * results: a participant must never be asked to classify themselves, nor see
- * anyone else's assessment.
+ * Describes what the system actually does — analysing a front-camera *video* of
+ * a smooth-pursuit task — rather than any imaging modality it does not support.
+ * The disclaimer appears in the hero, beside the call to action and again in
+ * the footer, because this is health-adjacent output and a visitor should never
+ * reach the assessment without having seen it.
  */
-export default function ParticipantPage() {
-  const [step, setStep] = useState(0);
-  const [subjectId, setSubjectId] = useState("");
-  const [duration, setDuration] = useState(30);
-  const [pattern, setPattern] = useState<PursuitPattern>("horizontal");
-  const [consent, setConsent] = useState(false);
-  const [understood, setUnderstood] = useState(false);
-  const [touched, setTouched] = useState(false);
 
-  const patternLabel = useMemo(
-    () => PURSUIT_PATTERNS.find((item) => item.value === pattern)?.label ?? pattern,
-    [pattern],
-  );
+const WORKFLOW: { icon: LucideIcon; step: string; title: string; body: string }[] = [
+  {
+    icon: ClipboardCheck,
+    step: "01",
+    title: "กรอกข้อมูลและยินยอม",
+    body: "ระบุรหัสผู้เข้ารับการประเมิน อ่านคำชี้แจง แล้วยืนยันความยินยอมก่อนเริ่ม",
+  },
+  {
+    icon: Camera,
+    step: "02",
+    title: "มองตามสิ่งเร้า",
+    body: "เปิดกล้องหน้า มองตามจุดที่เคลื่อนที่ประมาณ 30 วินาที โดยไม่ขยับศีรษะ",
+  },
+  {
+    icon: Gauge,
+    step: "03",
+    title: "รับผลการประเมิน",
+    body: "ดูคะแนนความเสี่ยง ระดับผล และค่าที่วัดได้ทั้งสิบค่าพร้อมคำอธิบาย",
+  },
+];
 
-  const consentComplete = consent && understood;
-  const subjectError =
-    touched && !subjectId.trim() ? "กรุณาระบุรหัสผู้เข้ารับการประเมิน" : undefined;
+const HIGHLIGHTS: { icon: LucideIcon; title: string; body: string }[] = [
+  {
+    icon: ScanLine,
+    title: "ตรวจจับดวงตาด้วย MediaPipe",
+    body: "ใช้ FaceMesh หาตำแหน่งม่านตาทุกเฟรม แล้วคำนวณความเร็ว ความเร่ง และความราบรื่นของการเคลื่อนไหว",
+  },
+  {
+    icon: Eye,
+    title: "อธิบายผลได้",
+    body: "แสดงค่าที่วัดได้ทั้งสิบค่าพร้อมหน่วยและความหมาย ไม่ใช่คะแนนลอยๆ ที่ตรวจสอบย้อนกลับไม่ได้",
+  },
+  {
+    icon: ShieldCheck,
+    title: "ปลอดภัยและโปร่งใส",
+    body: "ประมวลผลบนเซิร์ฟเวอร์ของโครงการเท่านั้น แจ้งชัดเจนว่าผลลัพธ์ไม่ใช่การวินิจฉัยทางการแพทย์",
+  },
+  {
+    icon: Activity,
+    title: "ติดตามผลย้อนหลัง",
+    body: "บันทึกผลทุกครั้งพร้อมรหัสผู้เข้าร่วม สำหรับนักวิจัยใช้เทียบแนวโน้มและส่งออกเป็น CSV",
+  },
+];
 
-  const goToConsent = () => {
-    setTouched(true);
-    if (subjectId.trim()) setStep(1);
-  };
+/** Focus ring that stays visible against the blue header, where a brand-coloured one would not. */
+const FOCUS_ON_BLUE =
+  "outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand-600";
 
+/** Focus ring for controls sitting on the page background. */
+const FOCUS_RING =
+  "outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900";
+
+const CHIPS = [
+  { icon: Target, label: "Smooth Pursuit" },
+  { icon: Stethoscope, label: "Research Grade" },
+  { icon: Sparkles, label: "Explainable Insights" },
+];
+
+/** Stylised eye, drawn rather than shipped as an image asset. */
+function EyeArtwork() {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
-      {/* ── Clinical header ─────────────────────────────────────────── */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-900/90">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3 sm:px-6">
+    <svg viewBox="0 0 320 200" className="h-full w-full" role="img" aria-label="ภาพประกอบดวงตา">
+      <defs>
+        <radialGradient id="iris" cx="42%" cy="38%">
+          <stop offset="0%" stopColor="#e0f2fe" />
+          <stop offset="45%" stopColor="#38bdf8" />
+          <stop offset="100%" stopColor="#0c4a6e" />
+        </radialGradient>
+        <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#60a5fa" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.05" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="118" cy="70" r="62" fill="url(#glow)" />
+      <circle cx="215" cy="130" r="72" fill="url(#glow)" />
+
+      <rect x="72" y="34" width="176" height="132" rx="20" fill="#0f172a" opacity="0.55" />
+
+      <circle cx="160" cy="100" r="52" fill="#e2e8f0" opacity="0.16" />
+      <circle cx="160" cy="100" r="40" fill="url(#iris)" />
+      <circle cx="160" cy="100" r="15" fill="#0f172a" />
+      <circle cx="149" cy="88" r="6" fill="#f8fafc" opacity="0.9" />
+
+      {/* Tracking arcs, echoing the pursuit path the task measures. */}
+      <path
+        d="M160 44 a56 56 0 0 1 48 28"
+        fill="none"
+        stroke="#7dd3fc"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M112 128 a56 56 0 0 0 34 26"
+        fill="none"
+        stroke="#7dd3fc"
+        strokeWidth="4"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+
+      <rect x="104" y="152" width="78" height="7" rx="3.5" fill="#7dd3fc" opacity="0.5" />
+      <rect x="104" y="166" width="52" height="7" rx="3.5" fill="#7dd3fc" opacity="0.3" />
+    </svg>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-sky-100 via-sky-50 to-white dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+      {/* ── Top bar ──────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-30 bg-gradient-to-r from-brand-700 via-brand-600 to-sky-500 shadow-sm">
+        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:px-6">
           <span
-            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white"
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white ring-1 ring-white/25"
             aria-hidden="true"
           >
-            <Eye className="size-5" />
+            <Home className="size-4.5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-              แบบประเมินการเคลื่อนไหวดวงตา
-            </p>
-            <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-              MyEye Assessment · เพื่อการวิจัย
+            <p className="truncate text-base font-bold text-white">MyEye</p>
+            {/* Dropped below sm so the brand never collapses to nothing at 320px. */}
+            <p className="hidden truncate text-[11px] text-sky-100 sm:block">
+              Early Alzheimer Risk Screening
             </p>
           </div>
-          <Badge tone="warning" className="shrink-0">
-            ไม่ใช่การวินิจฉัย
-          </Badge>
-        </div>
 
-        <div className="mx-auto max-w-3xl px-4 pb-3 sm:px-6">
-          <Stepper steps={STEPS} current={step} />
+          <nav aria-label="เมนูหลัก" className="flex shrink-0 items-center gap-2">
+            <span
+              aria-current="page"
+              className="hidden items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-xs font-medium text-white ring-1 ring-white/25 md:flex"
+            >
+              <Home className="size-3.5" aria-hidden="true" />
+              หน้าหลัก
+            </span>
+            <Link
+              href="/assessment/"
+              className={cn(
+                "hidden items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-xs font-medium text-white ring-1 ring-white/25 sm:flex",
+                "transition-colors hover:bg-white/25",
+                FOCUS_ON_BLUE,
+              )}
+            >
+              <ScanLine className="size-3.5" aria-hidden="true" />
+              เริ่มประเมิน
+            </Link>
+            <Link
+              href="/dashboard/"
+              className={cn(
+                "flex items-center gap-1.5 rounded-full bg-white/25 px-3.5 py-2 text-xs font-semibold text-white ring-1 ring-white/30",
+                "transition-colors hover:bg-white/35",
+                FOCUS_ON_BLUE,
+              )}
+            >
+              <LayoutDashboard className="size-3.5" aria-hidden="true" />
+              Dashboard
+            </Link>
+          </nav>
         </div>
       </header>
 
-      {/* ── Participant banner, the way a clinical record shows it ──── */}
-      {subjectId.trim() && step > 0 && (
-        <div className="border-b border-brand-100 bg-brand-50/70 dark:border-brand-500/20 dark:bg-brand-500/10">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5 sm:px-6">
-            <span className="flex items-center gap-1.5 text-xs">
-              <IdCard className="size-3.5 text-brand-600 dark:text-brand-400" aria-hidden="true" />
-              <span className="text-slate-500 dark:text-slate-400">รหัส</span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                {subjectId.trim()}
-              </span>
+      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:py-14">
+        {/* ── Hero ───────────────────────────────────────────────────── */}
+        <section className="grid items-start gap-8 lg:grid-cols-2">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-3xl bg-white p-7 shadow-xl shadow-sky-900/5 sm:p-9 dark:bg-slate-900"
+          >
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+              <ShieldCheck className="size-3.5" aria-hidden="true" />
+              AI Screening Tool · Research Use Only
             </span>
-            <span className="flex items-center gap-1.5 text-xs">
-              <CalendarClock
-                className="size-3.5 text-brand-600 dark:text-brand-400"
-                aria-hidden="true"
-              />
-              <span className="text-slate-500 dark:text-slate-400">ระยะเวลา</span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                {duration} วินาที
-              </span>
-            </span>
-            <span className="hidden items-center gap-1.5 text-xs sm:flex">
-              <SlidersHorizontal
-                className="size-3.5 text-brand-600 dark:text-brand-400"
-                aria-hidden="true"
-              />
-              <span className="text-slate-500 dark:text-slate-400">รูปแบบ</span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                {patternLabel}
-              </span>
-            </span>
-          </div>
-        </div>
-      )}
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-        <AnimatePresence mode="wait">
-          {/* ── Step 1: intake ─────────────────────────────────────── */}
-          {step === 0 && (
-            <motion.div
-              key="intake"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-5"
-            >
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  ข้อมูลผู้เข้ารับการประเมิน
-                </h1>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  กรอกข้อมูลที่จำเป็นก่อนเริ่มแบบประเมิน หัวข้อที่มี{" "}
-                  <span className="text-red-500">*</span> ต้องกรอก
-                </p>
-              </div>
+            <h1 className="mt-5 text-3xl font-bold leading-snug tracking-tight text-slate-900 sm:text-4xl dark:text-slate-50">
+              ระบบประเมินความเสี่ยง
+              <br />
+              โรคอัลไซเมอร์เบื้องต้นด้วย AI
+              <br />
+              จากการเคลื่อนไหวดวงตา
+            </h1>
 
-              <Accordion>
-                <AccordionSection
-                  title="ข้อมูลระบุตัวผู้เข้ารับการประเมิน"
-                  summary="รหัสที่ใช้อ้างอิงผลการประเมิน"
-                  icon={UserRound}
-                  defaultOpen
-                  status={
-                    subjectId.trim()
-                      ? { label: "กรอกแล้ว", tone: "success" }
-                      : { label: "จำเป็น", tone: "danger" }
-                  }
-                >
-                  <div className="space-y-4">
-                    <Input
-                      label="รหัสผู้เข้ารับการประเมิน (HN / Subject ID)"
-                      required
-                      value={subjectId}
-                      onChange={(event) => setSubjectId(event.target.value)}
-                      onBlur={() => setTouched(true)}
-                      placeholder="เช่น P001 หรือ HN-123456"
-                      autoComplete="off"
-                      error={subjectError}
-                      hint={
-                        !subjectError
-                          ? "ใช้อ้างอิงผลย้อนหลัง ไม่ต้องกรอกชื่อ-นามสกุล"
-                          : undefined
-                      }
-                      icon={<IdCard className="size-4" aria-hidden="true" />}
-                    />
-                    <Alert tone="info">
-                      ระบบเก็บเฉพาะรหัสอ้างอิงและวิดีโอการทำแบบประเมิน
-                      ไม่ได้เก็บชื่อ นามสกุล หรือเลขบัตรประชาชน
-                    </Alert>
-                  </div>
-                </AccordionSection>
+            <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-base dark:text-slate-300">
+              เครื่องมือวิจัยที่วิเคราะห์รูปแบบการมองตามวัตถุจากกล้องหน้าสมาร์ทโฟน
+              เพื่อให้ทีมวิจัยได้สัญญาณเชิงปริมาณอย่างปลอดภัยและตรวจสอบย้อนกลับได้
+            </p>
 
-                <AccordionSection
-                  title="ตั้งค่าแบบประเมิน"
-                  summary={`${duration} วินาที · ${patternLabel}`}
-                  icon={SlidersHorizontal}
-                  status={{ label: "ค่าเริ่มต้น", tone: "neutral" }}
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Input
-                      label="ระยะเวลาการบันทึก (วินาที)"
-                      type="number"
-                      min={10}
-                      max={60}
-                      step={5}
-                      value={duration}
-                      onChange={(event) =>
-                        setDuration(
-                          Math.min(60, Math.max(10, Number(event.target.value) || 30)),
-                        )
-                      }
-                      hint="แนะนำ 20–30 วินาที"
-                    />
-                    <Select
-                      label="รูปแบบการเคลื่อนที่ของสิ่งเร้า"
-                      value={pattern}
-                      onChange={(event) =>
-                        setPattern(event.target.value as PursuitPattern)
-                      }
-                      options={PURSUIT_PATTERNS}
-                      hint="ใช้รูปแบบเดียวกันทุกครั้งเพื่อให้เทียบผลกันได้"
-                    />
-                  </div>
-                </AccordionSection>
-
-                <AccordionSection
-                  title="ขั้นตอนการประเมินโดยสังเขป"
-                  summary="สิ่งที่จะเกิดขึ้นหลังกดเริ่ม"
-                  icon={ListChecks}
-                >
-                  <ol className="space-y-3">
-                    {[
-                      "ระบบขอสิทธิ์ใช้กล้องหน้าของอุปกรณ์",
-                      "จัดตำแหน่งใบหน้าให้อยู่ในกรอบที่กำหนด",
-                      `นับถอยหลัง 3 วินาที แล้วบันทึกวิดีโอ ${duration} วินาที`,
-                      "ระบบวิเคราะห์การเคลื่อนไหวดวงตาและแสดงผล",
-                    ].map((text, index) => (
-                      <li key={text} className="flex gap-3">
-                        <span
-                          className="flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                          aria-hidden="true"
-                        >
-                          {index + 1}
-                        </span>
-                        <span className="text-sm text-slate-600 dark:text-slate-300">
-                          {text}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                </AccordionSection>
-              </Accordion>
-
-              <div className="flex justify-end">
-                <Button size="lg" onClick={goToConsent} className="w-full sm:w-auto">
-                  ถัดไป
-                  <ArrowRight className="size-4" aria-hidden="true" />
-                </Button>
-              </div>
-
-              <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-                เป็นนักวิจัยหรือผู้ดูแลระบบ?{" "}
-                <a
-                  href="/ui/login/"
-                  className="rounded font-medium text-brand-600 underline-offset-2 hover:underline dark:text-brand-400"
-                >
-                  เข้าสู่ระบบ
-                </a>
-              </p>
-            </motion.div>
-          )}
-
-          {/* ── Step 2: consent ────────────────────────────────────── */}
-          {step === 1 && (
-            <motion.div
-              key="consent"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-5"
-            >
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                  คำชี้แจงและความยินยอม
-                </h1>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  กรุณาอ่านให้ครบก่อนยืนยัน
-                </p>
-              </div>
-
-              <Alert tone="warning" title="ข้อจำกัดของเครื่องมือนี้">
-                นี่คือซอฟต์แวร์ต้นแบบสำหรับงานวิจัย <strong>ไม่ใช่เครื่องมือแพทย์</strong>{" "}
-                ไม่สามารถใช้วินิจฉัย คัดกรอง หรือตัดสินใจรักษาได้
-                ผลลัพธ์เป็นเพียงตัวเลขจากแบบจำลองทางสถิติ
-                หากคุณกังวลเรื่องความจำหรือการรับรู้ กรุณาปรึกษาแพทย์
-              </Alert>
-
-              <Accordion>
-                <AccordionSection
-                  title="การเตรียมความพร้อม"
-                  summary="ปฏิบัติตามเพื่อให้ผลแม่นยำ"
-                  icon={ClipboardCheck}
-                  defaultOpen
-                >
-                  <ul className="space-y-3">
-                    {PREPARATION.map(({ icon: Icon, text }) => (
-                      <li key={text} className="flex items-start gap-3">
-                        <Icon
-                          className="mt-0.5 size-4 shrink-0 text-brand-500"
-                          aria-hidden="true"
-                        />
-                        <span className="text-sm text-slate-600 dark:text-slate-300">
-                          {text}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </AccordionSection>
-
-                <AccordionSection
-                  title="ข้อมูลที่จัดเก็บและการนำไปใช้"
-                  summary="วิดีโอใบหน้า รหัสอ้างอิง และค่าที่วัดได้"
-                  icon={FileText}
-                >
-                  <ul className="space-y-2.5 text-sm text-slate-600 dark:text-slate-300">
-                    {[
-                      "ระบบบันทึกวิดีโอใบหน้าระหว่างทำแบบประเมิน เพื่อสกัดค่าการเคลื่อนไหวดวงตา",
-                      "วิดีโอใบหน้าเป็นข้อมูลชีวมิติซึ่งทำให้ไม่ระบุตัวตนไม่ได้ จึงอยู่ภายใต้ PDPA",
-                      "ข้อมูลถูกประมวลผลบนเซิร์ฟเวอร์ของโครงการเท่านั้น ไม่ส่งออกไปยังบุคคลที่สาม",
-                      "คุณสามารถขอให้ลบข้อมูลของคุณได้ โดยติดต่อผู้รับผิดชอบโครงการ",
-                    ].map((text) => (
-                      <li key={text} className="flex gap-2">
-                        <span
-                          className="mt-1.5 size-1.5 shrink-0 rounded-full bg-brand-500"
-                          aria-hidden="true"
-                        />
-                        {text}
-                      </li>
-                    ))}
-                  </ul>
-                </AccordionSection>
-
-                <AccordionSection
-                  title="ผลลัพธ์ที่จะได้รับ"
-                  summary="คะแนนความเสี่ยงและค่าที่วัดได้"
-                  icon={Stethoscope}
-                >
-                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                    เมื่อประมวลผลเสร็จ ระบบจะแสดงคะแนนระหว่าง 0 ถึง 1
-                    พร้อมระดับความเสี่ยงสามระดับ และค่าที่วัดได้ทั้งสิบค่า
-                    ตัวเลขเหล่านี้อธิบายรูปแบบการเคลื่อนไหวดวงตาที่ตรวจพบในคลิปนี้เท่านั้น
-                    ไม่ได้บ่งชี้ภาวะสุขภาพใด และไม่ควรนำไปใช้แทนการตรวจโดยแพทย์
-                  </p>
-                </AccordionSection>
-              </Accordion>
-
-              <Card className="space-y-3.5">
-                <Checkbox
-                  label="ข้าพเจ้าได้อ่านและเข้าใจว่าเครื่องมือนี้เป็นซอฟต์แวร์วิจัย ไม่ใช่การวินิจฉัยทางการแพทย์"
-                  checked={understood}
-                  onChange={(event) => setUnderstood(event.target.checked)}
-                />
-                <Checkbox
-                  label="ข้าพเจ้ายินยอมให้บันทึกวิดีโอใบหน้าและนำข้อมูลไปใช้เพื่อการวิจัยตามที่ระบุข้างต้น"
-                  checked={consent}
-                  onChange={(event) => setConsent(event.target.checked)}
-                />
-              </Card>
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setStep(0)}
-                  icon={<ArrowLeft className="size-4" aria-hidden="true" />}
-                >
-                  ย้อนกลับ
-                </Button>
-                <Button
-                  size="lg"
-                  disabled={!consentComplete}
-                  onClick={() => setStep(2)}
-                  icon={<Play className="size-4" aria-hidden="true" />}
-                >
-                  {consentComplete ? "เริ่มแบบประเมิน" : "กรุณายืนยันทั้งสองข้อ"}
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* ── Step 3: assessment ─────────────────────────────────── */}
-          {step === 2 && (
-            <motion.div
-              key="assess"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22 }}
-              className="space-y-4"
-            >
-              <AssessmentFlow
-                subjectId={subjectId.trim()}
-                durationSeconds={duration}
-                pattern={pattern}
-              />
-              <button
-                type="button"
-                onClick={() => setStep(1)}
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link
+                href="/assessment/"
                 className={cn(
-                  "mx-auto block rounded text-xs text-slate-400 transition-colors",
-                  "hover:text-slate-600 dark:hover:text-slate-300",
+                  "inline-flex items-center gap-2 rounded-full bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/25",
+                  "transition-all hover:bg-brand-700 active:scale-[0.98]",
+                  FOCUS_RING,
                 )}
               >
-                ← กลับไปแก้ไขข้อมูล
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                <ScanLine className="size-4" aria-hidden="true" />
+                เริ่มประเมิน
+              </Link>
+              <Link
+                href="/login/"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700",
+                  "transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800",
+                  FOCUS_RING,
+                )}
+              >
+                <LayoutDashboard className="size-4" aria-hidden="true" />
+                สำหรับนักวิจัย
+              </Link>
+            </div>
+
+            <ul className="mt-7 flex flex-wrap gap-2.5">
+              {CHIPS.map(({ icon: Icon, label }) => (
+                <li
+                  key={label}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3.5 py-2 text-xs font-medium text-white"
+                >
+                  <Icon className="size-3.5" aria-hidden="true" />
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-3xl bg-gradient-to-br from-sky-400 via-brand-500 to-brand-700 p-6 shadow-xl shadow-brand-900/15 sm:p-7"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium text-sky-100">AI Screening Assistant</p>
+                <p className="text-2xl font-bold text-white">MyEye</p>
+              </div>
+              <span
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white ring-1 ring-white/30"
+                aria-hidden="true"
+              >
+                <ShieldCheck className="size-5" />
+              </span>
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-2xl bg-slate-950/70 p-4 ring-1 ring-white/10">
+              <div className="aspect-video">
+                <EyeArtwork />
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white/15 p-4 ring-1 ring-white/20">
+                <p className="text-[11px] font-medium text-sky-100">ผลลัพธ์ที่ได้</p>
+                <p className="mt-1 text-lg font-bold leading-snug text-white">
+                  ความเสี่ยงต่ำ /<br />
+                  ปานกลาง / สูง
+                </p>
+              </div>
+              <div className="rounded-2xl bg-white/15 p-4 ring-1 ring-white/20">
+                <p className="text-[11px] font-medium text-sky-100">คำเตือน</p>
+                <p className="mt-1 text-xs leading-relaxed text-white">
+                  ผลลัพธ์นี้ไม่ใช้แทนการวินิจฉัยของแพทย์
+                  และควรได้รับการตรวจยืนยันจากผู้เชี่ยวชาญ
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        </section>
+
+        {/* ── Workflow ───────────────────────────────────────────────── */}
+        <section className="mt-16" aria-labelledby="workflow-heading">
+          <p className="text-xs font-bold tracking-[0.2em] text-brand-600 dark:text-brand-400">
+            WORKFLOW
+          </p>
+          <h2
+            id="workflow-heading"
+            className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100"
+          >
+            ขั้นตอนใช้งานง่ายและปลอดภัย
+          </h2>
+
+          <div className="mt-7 grid gap-5 md:grid-cols-3">
+            {WORKFLOW.map(({ icon: Icon, step, title, body }, index) => (
+              <motion.article
+                key={step}
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.3, delay: index * 0.07 }}
+                className="rounded-2xl border border-white/60 bg-white/70 p-6 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/70"
+              >
+                <span
+                  className="flex size-11 items-center justify-center rounded-xl bg-brand-600 text-white shadow-md shadow-brand-600/25"
+                  aria-hidden="true"
+                >
+                  <Icon className="size-5" />
+                </span>
+                <p className="mt-5 text-xs font-bold tracking-widest text-slate-400 dark:text-slate-500">
+                  {step}
+                </p>
+                <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                  {body}
+                </p>
+              </motion.article>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Highlights ─────────────────────────────────────────────── */}
+        <section className="mt-16" aria-labelledby="highlights-heading">
+          <p className="text-xs font-bold tracking-[0.2em] text-brand-600 dark:text-brand-400">
+            HIGHLIGHTS
+          </p>
+          <h2
+            id="highlights-heading"
+            className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100"
+          >
+            จุดเด่นของระบบที่ออกแบบมาเพื่อการศึกษาและงานวิจัย
+          </h2>
+
+          <div className="mt-7 grid gap-5 md:grid-cols-2">
+            {HIGHLIGHTS.map(({ icon: Icon, title, body }, index) => (
+              <motion.article
+                key={title}
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.3, delay: index * 0.06 }}
+                className="rounded-2xl border border-white/60 bg-white/70 p-6 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900/70"
+              >
+                <span
+                  className="flex size-11 items-center justify-center rounded-xl bg-brand-600 text-white shadow-md shadow-brand-600/25"
+                  aria-hidden="true"
+                >
+                  <Icon className="size-5" />
+                </span>
+                <h3 className="mt-5 text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                  {body}
+                </p>
+              </motion.article>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Closing call to action ─────────────────────────────────── */}
+        <section className="mt-14 rounded-3xl border border-white/60 bg-white/70 p-7 shadow-sm backdrop-blur sm:p-9 dark:border-slate-800 dark:bg-slate-900/70">
+          <div className="grid items-center gap-6 lg:grid-cols-[1.4fr_1fr]">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 sm:text-2xl dark:text-slate-100">
+                พร้อมสำหรับการใช้งานและต่อยอด
+              </h2>
+              <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-slate-400">
+                โปรเจกต์นี้ออกแบบให้เป็นฐานสำหรับงานวิจัย
+                สลับอัลกอริทึมจาก RandomForest ไปเป็นโมเดลลำดับเวลาได้โดยไม่ต้องแก้ส่วนอื่น
+                และเก็บค่าที่วัดได้ทุกเฟรมไว้ตรวจสอบย้อนกลับ
+              </p>
+              <Link
+                href="/assessment/"
+                className={cn(
+                  "mt-6 inline-flex items-center gap-2 rounded-full bg-brand-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-600/25",
+                  "transition-all hover:bg-brand-700 active:scale-[0.98]",
+                  FOCUS_RING,
+                )}
+              >
+                <ScanLine className="size-4" aria-hidden="true" />
+                เริ่มประเมิน
+              </Link>
+            </div>
+
+            <p className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+              <span className="font-bold">Medical disclaimer:</span>{" "}
+              เครื่องมือนี้ไม่ใช่เครื่องมือแพทย์ ไม่ใช้แทนการวินิจฉัย
+              และต้องได้รับการยืนยันจากผู้เชี่ยวชาญ
+            </p>
+          </div>
+        </section>
       </main>
 
-      <footer className="mx-auto max-w-3xl px-4 pb-8 sm:px-6">
-        <p className="border-t border-slate-200 pt-4 text-center text-[11px] leading-relaxed text-slate-400 dark:border-slate-800 dark:text-slate-500">
-          ระบบต้นแบบสำหรับงานวิจัย — ผลลัพธ์ไม่ใช่การวินิจฉัยทางการแพทย์
-          <br />
-          หากมีข้อสงสัยเกี่ยวกับสุขภาพ กรุณาปรึกษาแพทย์หรือบุคลากรทางการแพทย์
+      {/* ── Footer ───────────────────────────────────────────────────── */}
+      <footer className="bg-gradient-to-r from-brand-700 via-brand-600 to-sky-500">
+        <p className="mx-auto flex max-w-7xl items-center justify-center gap-2 px-4 py-4 text-center text-xs font-medium text-white sm:px-6">
+          <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
+          Research use only · Not for diagnosis · Consult a medical professional
         </p>
       </footer>
     </div>

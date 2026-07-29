@@ -122,7 +122,7 @@ function LoginForm() {
           href="/ui/"
           className="mt-5 block rounded text-center text-sm text-slate-500 transition-colors hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-400"
         >
-          ← กลับไปหน้าประเมิน
+          ← กลับไปหน้าแรก
         </a>
       </motion.div>
     </div>
