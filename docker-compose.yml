@@ -19,7 +19,7 @@ services:
     ports:
       # Host:container. Put a TLS-terminating reverse proxy in front of this in
       # production; the camera only works over HTTPS or on localhost.
-      - "${MYEYE_PORT:-8000}:8000"
+      - "${MYEYE_PORT:-8182}:8000"
 
     environment:
       # --- Application ---------------------------------------------------

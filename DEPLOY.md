@@ -12,7 +12,7 @@ the model pipeline. The host needs Docker only — no Python, no Node.
 - `https://` origins, or
 - `http://localhost` / `http://127.0.0.1`
 
-So a container published at `http://192.168.1.50:8000` will start fine, serve
+So a container published at `http://192.168.1.50:8182` will start fine, serve
 every page, let you sign in, train models and read reports — **but the assessment
 will never get past "เปิดกล้อง"**, because the browser blocks the camera before
 any of this code runs. The app detects this and says so, but it cannot work
@@ -24,7 +24,7 @@ You therefore need one of:
 | --- | --- |
 | Real deployment | Put a TLS reverse proxy in front (Nginx Proxy Manager, Traefik, Caddy). Then set `SESSION_COOKIE_SECURE=true`. |
 | Internal network, no public DNS | Issue an internal certificate, or use Tailscale/Cloudflare Tunnel which terminate TLS for you. |
-| Just testing on the Docker host itself | Browse to `http://localhost:8000/ui` **on that machine**. |
+| Just testing on the Docker host itself | Browse to `http://localhost:8182/ui` **on that machine**. |
 
 Everything except the camera works over plain HTTP, which is exactly why this
 trips people up late.
@@ -47,7 +47,7 @@ plus a redeploy is the whole update flow.
    | Name | Value | Notes |
    | --- | --- | --- |
    | `ADMIN_PASSWORD` | a strong password | Leave unset and one is generated into the log **once** |
-   | `MYEYE_PORT` | `8000` | Host port to publish |
+   | `MYEYE_PORT` | `8182` | Host port to publish (container always listens on 8000) |
    | `SESSION_COOKIE_SECURE` | `true` | Once you are behind HTTPS |
    | `CORS_ALLOW_ORIGINS` | your origin | Restrict away from `*` in production |
 
