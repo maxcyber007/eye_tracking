@@ -15,7 +15,7 @@ from typing import AsyncIterator
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -242,36 +242,73 @@ def mount_frontend(application: FastAPI, settings: Settings) -> None:
         logger.info("Frontend serving is disabled (SERVE_FRONTEND=false)")
         return
 
-    candidates = [
-        (settings.frontend_dir, "Next.js build"),
-        (settings.frontend_fallback_dir, "fallback client"),
-    ]
-    for directory, description in candidates:
-        if directory.is_dir() and (directory / "index.html").is_file():
-            application.mount(
-                settings.frontend_mount_path,
-                StaticFiles(directory=directory, html=True),
-                name="frontend",
-            )
-            logger.info(
-                "Frontend (%s) mounted at %s from %s",
-                description,
-                settings.frontend_mount_path,
-                directory,
-            )
-            if description != "Next.js build":
-                logger.warning(
-                    "Serving the fallback client. Run `npm install && npm run build` "
-                    "in %s for the full dashboard.",
-                    settings.frontend_dir.parent,
-                )
-            return
+    mount = settings.frontend_mount_path.rstrip("/")
+
+    if settings.frontend_dir.is_dir() and (settings.frontend_dir / "index.html").is_file():
+        application.mount(
+            mount,
+            StaticFiles(directory=settings.frontend_dir, html=True),
+            name="frontend",
+        )
+        logger.info("Frontend (Next.js build) mounted at %s from %s", mount, settings.frontend_dir)
+        return
+
+    fallback = settings.frontend_fallback_dir
+    if fallback.is_dir() and (fallback / "index.html").is_file():
+        # The two clients use different URLs: the Next.js build serves
+        # /ui/dashboard/, the fallback only has /ui/dashboard.html. Without
+        # these redirects the documented links 404 whenever the build is
+        # missing, with nothing on screen to explain why.
+        register_fallback_redirects(application, mount)
+        application.mount(
+            mount,
+            StaticFiles(directory=fallback, html=True),
+            name="frontend",
+        )
+        logger.info("Frontend (fallback client) mounted at %s from %s", mount, fallback)
+        logger.warning(
+            "\n%s\n  Serving the FALLBACK client - the Next.js build was not found at\n  %s\n\n"
+            "  For the full dashboard run:\n"
+            "      cd %s\n      npm install\n      npm run build\n%s",
+            "=" * 68,
+            settings.frontend_dir,
+            settings.frontend_dir.parent,
+            "=" * 68,
+        )
+        return
 
     logger.warning(
         "No web client found in %s or %s; only the API is served.",
         settings.frontend_dir,
-        settings.frontend_fallback_dir,
+        fallback,
     )
+
+
+def register_fallback_redirects(application: FastAPI, mount: str) -> None:
+    """Map the Next.js URLs onto the fallback client's single dashboard page.
+
+    Args:
+        application: Application to register the redirect routes on.
+        mount: Mount path of the web client, without a trailing slash.
+
+    Returns:
+        None
+    """
+    targets = {
+        f"{mount}/login": f"{mount}/dashboard.html",
+        f"{mount}/dashboard": f"{mount}/dashboard.html",
+        f"{mount}/dashboard/history": f"{mount}/dashboard.html",
+        f"{mount}/dashboard/collect": f"{mount}/dashboard.html?mode=research",
+    }
+
+    for source, destination in targets.items():
+        for path in (source, f"{source}/"):
+
+            def _redirect(_: Request, target: str = destination) -> RedirectResponse:
+                """Send the caller to the equivalent page of the fallback client."""
+                return RedirectResponse(target, status_code=307)
+
+            application.add_route(path, _redirect, methods=["GET"], include_in_schema=False)
 
 
 #: ASGI application consumed by ``uvicorn app.main:app``.
