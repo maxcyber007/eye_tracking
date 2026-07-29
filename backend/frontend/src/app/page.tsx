@@ -96,7 +96,7 @@ export default function ParticipantPage() {
               แบบประเมินการเคลื่อนไหวดวงตา
             </p>
             <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-              Eye-Tracking Assessment · เพื่อการวิจัย
+              MyEye Assessment · เพื่อการวิจัย
             </p>
           </div>
           <Badge tone="warning" className="shrink-0">

@@ -63,7 +63,7 @@ function Brand() {
       </span>
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Eye-Tracking
+          MyEye
         </p>
         <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
           ระบบประเมินความเสี่ยง

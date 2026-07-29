@@ -21,7 +21,7 @@ router = APIRouter(tags=["train"])
     "/train",
     response_model=TrainResponse,
     status_code=status.HTTP_200_OK,
-    summary="Train the risk model from dataset.csv and persist eye_model.pkl",
+    summary="Train the risk model from dataset.csv and persist myeye_model.pkl",
     responses={
         400: {"model": ErrorResponse, "description": "The dataset or model type is unusable."},
         422: {"model": ErrorResponse, "description": "The estimator could not be fitted."},

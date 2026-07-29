@@ -1,4 +1,4 @@
-# Alzheimer Eye-Tracking Risk API
+# MyEye Risk API
 
 Research **prototype** that estimates an early Alzheimer's disease risk score from a
 smooth-pursuit eye-tracking task recorded with a smartphone front camera.
@@ -96,12 +96,12 @@ backend/
 │   │   ├── estimators.py       # RandomForest / GradientBoosting implementations
 │   │   ├── extract_feature.py  # OpenCV + FaceMesh → per-frame CSV
 │   │   ├── feature_engineering.py  # per-frame CSV → 10 features → dataset.csv
-│   │   ├── train_model.py      # dataset.csv → eye_model.pkl (joblib)
+│   │   ├── train_model.py      # dataset.csv → myeye_model.pkl (joblib)
 │   │   ├── predict_model.py    # cached inference + risk banding
 │   │   ├── pipeline.py         # end-to-end orchestration service
 │   │   └── utils.py            # signal processing & filesystem helpers
 │   │
-│   ├── models/                 # eye_model.pkl  (generated)
+│   ├── models/                 # myeye_model.pkl  (generated)
 │   └── uploads/                # recordings + *_output.csv  (generated)
 │
 ├── dataset/                    # dataset.csv  (generated)
@@ -180,7 +180,7 @@ curl -X POST http://127.0.0.1:8000/api/predict -F "file=@new_recording.mp4"
 | GET    | `/`                     | Liveness probe.                                                     |
 | GET    | `/health`               | Readiness probe: database, model, dataset and history counters.     |
 | POST   | `/api/upload`           | Upload a recording, extract features, optionally label and predict. |
-| POST   | `/api/train`            | Train the model from `dataset.csv` and write `eye_model.pkl`.       |
+| POST   | `/api/train`            | Train the model from `dataset.csv` and write `myeye_model.pkl`.       |
 | GET    | `/api/train/status`     | Inspect the dataset and the currently loaded model.                 |
 | POST   | `/api/predict`          | Predict from a new upload or a previously stored filename.          |
 | POST   | `/api/predict/features` | Predict directly from a pre-computed feature vector.                |
@@ -299,7 +299,7 @@ traceable back to its recording.
 3. fits a `RandomForestClassifier` (`class_weight="balanced"`);
 4. evaluates accuracy, weighted precision / recall / F1, ROC AUC, a stratified
    cross-validation score and the confusion matrix;
-5. serialises a self-describing **`ModelBundle`** to `app/models/eye_model.pkl` with joblib.
+5. serialises a self-describing **`ModelBundle`** to `app/models/myeye_model.pkl` with joblib.
 
 The bundle stores the estimator *together with* the feature order, the class list, the
 hyper-parameters, the metrics and the provenance metadata — a prediction can therefore never
@@ -355,7 +355,7 @@ See [`.env.example`](.env.example) for the annotated list. The most useful ones:
 | Variable                     | Default              | Purpose                                    |
 | ---------------------------- | -------------------- | ------------------------------------------ |
 | `UPLOAD_DIR`                 | `app/uploads`        | Where recordings and per-frame CSVs land.  |
-| `MODEL_DIR` / `MODEL_FILENAME` | `app/models` / `eye_model.pkl` | Trained artefact location.  |
+| `MODEL_DIR` / `MODEL_FILENAME` | `app/models` / `myeye_model.pkl` | Trained artefact location.  |
 | `DATASET_DIR` / `DATASET_FILENAME` | `dataset` / `dataset.csv` | Aggregated dataset location. |
 | `DATABASE_URL`               | `sqlite:///./app/eye_tracking.db` | SQLite file.                |
 | `MODEL_TYPE`                 | `random_forest`      | Which registered implementation to train.  |

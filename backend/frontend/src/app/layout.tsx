@@ -23,7 +23,7 @@ const prompt = Prompt({
 export const metadata: Metadata = {
   title: {
     default: "ระบบประเมินความเสี่ยงจากการเคลื่อนไหวดวงตา",
-    template: "%s · Eye-Tracking",
+    template: "%s · MyEye",
   },
   description:
     "ต้นแบบงานวิจัยสำหรับประเมินความเสี่ยงโรคอัลไซเมอร์เบื้องต้นจากการเคลื่อนไหวดวงตา",

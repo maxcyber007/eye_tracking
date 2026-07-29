@@ -139,7 +139,7 @@ export default function OverviewPage() {
               value={health.data?.history_count ?? 0}
               icon={Users}
               tone="success"
-              hint="บันทึกในตาราง test_history"
+              hint="บันทึกในตาราง"
             />
             <StatCard
               index={2}
@@ -157,7 +157,7 @@ export default function OverviewPage() {
               value={health.data?.status === "ok" ? "ปกติ" : "ผิดปกติ"}
               icon={ServerCog}
               tone={health.data?.status === "ok" ? "success" : "danger"}
-              hint={`เวอร์ชัน ${health.data?.version ?? "—"} · ${health.data?.environment ?? "—"}`}
+              hint={`เวอร์ชัน ${health.data?.version ?? "—"}`}
             />
           </>
         )}
@@ -262,44 +262,11 @@ export default function OverviewPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>รายละเอียดระบบ</CardTitle>
-        </CardHeader>
-        {health.loading ? (
-          <Skeleton className="h-32 w-full" />
-        ) : (
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              ["สถานะบริการ", health.data?.status ?? "—"],
-              ["เวอร์ชัน", health.data?.version ?? "—"],
-              ["สภาพแวดล้อม", health.data?.environment ?? "—"],
-              ["ฐานข้อมูล", health.data?.database ? "เชื่อมต่อได้" : "มีปัญหา"],
-              ["โมเดลพร้อมใช้", health.data?.model_available ? "ใช่" : "ยังไม่มี"],
-              [
-                "อัลกอริทึมที่ลงทะเบียน",
-                (health.data?.available_models ?? []).join(", ") || "—",
-              ],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="flex items-baseline justify-between gap-3 border-b border-slate-100 pb-2 dark:border-slate-800"
-              >
-                <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
-                <dd className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                  {value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        )}
-      </Card>
-
       <ConfirmDialog
         open={confirmOpen}
         title="เทรนโมเดลใหม่?"
         description={
-          "ระบบจะเทรนจาก dataset.csv ทั้งหมดแล้วเขียนทับ eye_model.pkl เดิม\n" +
+          "ระบบจะเทรนจาก dataset.csv ทั้งหมดแล้วเขียนทับ myeye_model.pkl เดิม\n" +
           "การทำนายครั้งถัดไปจะใช้โมเดลใหม่ทันที"
         }
         confirmLabel="เทรนเลย"

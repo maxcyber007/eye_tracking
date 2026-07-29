@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     )
 
     # ------------------------------------------------------------------ app --
-    app_name: str = Field(default="Alzheimer Eye-Tracking Risk API")
+    app_name: str = Field(default="MyEye Risk API")
     app_version: str = Field(default="0.1.0")
     app_description: str = Field(
         default=(
@@ -84,7 +84,7 @@ class Settings(BaseSettings):
     serve_frontend: bool = True
     frontend_mount_path: str = "/ui"
 
-    model_filename: str = "eye_model.pkl"
+    model_filename: str = "myeye_model.pkl"
     dataset_filename: str = "dataset.csv"
     frame_csv_suffix: str = "_output.csv"
 

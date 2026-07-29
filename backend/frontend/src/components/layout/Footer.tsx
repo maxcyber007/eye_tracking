@@ -7,7 +7,7 @@ export function Footer() {
           ระบบต้นแบบสำหรับงานวิจัย — ผลลัพธ์ไม่ใช่การวินิจฉัยทางการแพทย์
         </p>
         <p className="shrink-0">
-          Alzheimer Eye-Tracking Risk · เอกสาร API ที่{" "}
+          MyEye · เอกสาร API ที่{" "}
           <a
             href="/docs"
             target="_blank"

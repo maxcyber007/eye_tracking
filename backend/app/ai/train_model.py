@@ -1,7 +1,7 @@
 """Training service.
 
 Reads ``dataset/dataset.csv``, fits the configured model implementation and
-persists the artefact to ``app/models/eye_model.pkl`` with joblib.
+persists the artefact to ``app/models/myeye_model.pkl`` with joblib.
 """
 
 from __future__ import annotations

@@ -142,7 +142,7 @@ function HistoryReport() {
           "confidence",
           "model_type",
         ]),
-        `eye_tracking_history_${new Date().toISOString().slice(0, 10)}.csv`,
+        `myeye_history_${new Date().toISOString().slice(0, 10)}.csv`,
       );
       notify("success", `ดาวน์โหลด ${all.length} รายการแล้ว`);
     } catch (caught) {
@@ -378,7 +378,7 @@ function HistoryReport() {
             : "ล้างผลย้อนหลังทั้งหมด?"
         }
         description={
-          "ลบเฉพาะบันทึกการทำนาย (test_history)\n" +
+          "ลบเฉพาะบันทึกการทำนาย\n" +
           "ชุดข้อมูลเทรน dataset.csv และโมเดลจะไม่ถูกลบ\n\n" +
           "การกระทำนี้ย้อนกลับไม่ได้"
         }
