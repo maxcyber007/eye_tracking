@@ -10,9 +10,13 @@
 import type {
   ApiErrorBody,
   AuthStatus,
+  DatasetDeleteResponse,
   HealthResponse,
   HistoryDeleteResponse,
   HistoryListResponse,
+  MockDatasetRequest,
+  MockDatasetResponse,
+  ModelDeleteResponse,
   PredictResponse,
   TrainResponse,
   TrainStatus,
@@ -113,6 +117,23 @@ export const model = {
 
   /** Retrain from `dataset.csv` and persist the model. */
   train: () => request<TrainResponse>("/api/train", json({})),
+
+  /** Delete the trained artefact so the next run starts from scratch. */
+  remove: () =>
+    request<ModelDeleteResponse>("/api/model?confirm=true", { method: "DELETE" }),
+};
+
+// --------------------------------------------------------------------------- //
+// Dataset maintenance                                                         //
+// --------------------------------------------------------------------------- //
+export const dataset = {
+  /** Fabricate rows so the pipeline can be trained without real recordings. */
+  mock: (payload: MockDatasetRequest) =>
+    request<MockDatasetResponse>("/api/dataset/mock", json(payload)),
+
+  /** Delete `dataset.csv` entirely. */
+  remove: () =>
+    request<DatasetDeleteResponse>("/api/dataset?confirm=true", { method: "DELETE" }),
 };
 
 // --------------------------------------------------------------------------- //

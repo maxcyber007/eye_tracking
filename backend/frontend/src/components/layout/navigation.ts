@@ -1,6 +1,7 @@
 import {
   ClipboardList,
   LayoutDashboard,
+  Settings,
   Video,
   type LucideIcon,
 } from "lucide-react";
@@ -31,6 +32,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "เก็บข้อมูล",
     icon: Video,
     description: "บันทึกตัวอย่างพร้อม label",
+  },
+  {
+    href: "/dashboard/settings/",
+    label: "ตั้งค่า",
+    icon: Settings,
+    description: "จัดการชุดข้อมูลและโมเดล",
   },
 ];
 

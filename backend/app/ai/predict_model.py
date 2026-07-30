@@ -140,6 +140,27 @@ class RiskPredictor:
             self._model = None
             self._loaded_mtime = None
 
+    def delete(self) -> bool:
+        """Remove the trained artefact from disk and drop the cache.
+
+        The cache is cleared inside the same lock that removes the file, so a
+        concurrent request can never keep serving predictions from a model the
+        operator believes they have deleted.
+
+        Returns:
+            bool: ``True`` when an artefact was removed, ``False`` when there
+            was nothing to delete.
+        """
+        with self._lock:
+            path = self.model_path
+            existed = path.exists()
+            if existed:
+                path.unlink()
+                logger.info("Deleted the model artefact at %s", path)
+            self._model = None
+            self._loaded_mtime = None
+            return existed
+
     def info(self) -> dict[str, Any]:
         """Describe the currently available model without raising.
 

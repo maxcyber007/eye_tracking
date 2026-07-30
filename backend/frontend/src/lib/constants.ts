@@ -1,5 +1,15 @@
 import type { PursuitPattern, RiskLevel } from "@/lib/types";
 
+/**
+ * Product name of the trained model, shown wherever a model is named.
+ *
+ * The backend reports `model_type` — the algorithm, e.g. `random_forest` —
+ * which is what the registry swaps when the estimator changes. That stays
+ * visible as a secondary line rather than being replaced by this name, so the
+ * screen never hides which algorithm actually produced a score.
+ */
+export const MODEL_DISPLAY_NAME = "MyEye";
+
 /** Human readable name and unit for every model feature. */
 export const FEATURE_LABELS: Record<string, { label: string; unit: string }> = {
   eye_velocity: { label: "ความเร็วเฉลี่ยของสายตา", unit: "หน่วยตา/วินาที" },

@@ -373,6 +373,67 @@ class DatasetRepository:
         logger.info("Appended sample %s (label=%d) to %s", row["sample_id"], label, self.path)
         return self.path
 
+    def append_frame(self, frame: pd.DataFrame) -> int:
+        """Append a whole dataframe of ready-made rows to the dataset.
+
+        The frame is reindexed onto :attr:`columns` first, so a caller that
+        produced its rows from a different column order — or that is missing an
+        optional metadata column — cannot silently corrupt the CSV layout.
+
+        Args:
+            frame: Rows to append; must already carry the feature and label
+                columns.
+
+        Returns:
+            int: Number of rows written.
+        """
+        utils.ensure_directory(self.path.parent)
+        aligned = frame.reindex(columns=self.columns)
+
+        header = not self.path.exists() or self.path.stat().st_size == 0
+        aligned.to_csv(self.path, mode="a", header=header, index=False)
+        logger.info("Appended %d rows to %s", len(aligned), self.path)
+        return int(len(aligned))
+
+    def replace_frame(self, frame: pd.DataFrame) -> int:
+        """Overwrite the dataset with the supplied rows.
+
+        Args:
+            frame: Rows that become the complete new dataset.
+
+        Returns:
+            int: Number of rows written.
+        """
+        utils.ensure_directory(self.path.parent)
+        aligned = frame.reindex(columns=self.columns)
+        aligned.to_csv(self.path, mode="w", header=True, index=False)
+        logger.info("Replaced %s with %d rows", self.path, len(aligned))
+        return int(len(aligned))
+
+    def delete(self) -> int:
+        """Delete the dataset file.
+
+        Deleting rather than truncating keeps ``summary()['exists']`` honest:
+        an empty file with only a header would report as an existing dataset
+        that then fails to load.
+
+        Returns:
+            int: Number of rows that were discarded; ``0`` when there was no
+            dataset to begin with.
+        """
+        if not self.exists():
+            return 0
+
+        try:
+            rows = int(len(pd.read_csv(self.path)))
+        except Exception:  # pragma: no cover - corrupted file, delete it anyway
+            logger.warning("Dataset at %s is unreadable; deleting it", self.path, exc_info=True)
+            rows = 0
+
+        self.path.unlink()
+        logger.info("Deleted the dataset at %s (%d rows discarded)", self.path, rows)
+        return rows
+
     def summary(self) -> dict[str, Any]:
         """Summarise the dataset without raising when it does not exist yet.
 

@@ -19,7 +19,7 @@ import { useToast } from "@/components/ui/Toast";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { FeatureImportanceChart } from "@/components/dashboard/Charts";
 import { model, system } from "@/lib/api";
-import { FEATURE_LABELS } from "@/lib/constants";
+import { FEATURE_LABELS, MODEL_DISPLAY_NAME } from "@/lib/constants";
 import { formatNumber } from "@/lib/format";
 import { useAsync } from "@/hooks/useAsync";
 import type { TrainingMetrics } from "@/lib/types";
@@ -144,11 +144,13 @@ export default function OverviewPage() {
             <StatCard
               index={2}
               label="โมเดลปัจจุบัน"
-              value={modelInfo?.available ? (modelInfo.model_type ?? "—") : "ยังไม่มี"}
+              value={modelInfo?.available ? MODEL_DISPLAY_NAME : "ยังไม่มี"}
               icon={BrainCircuit}
               tone={modelInfo?.available ? "success" : "warning"}
               hint={
-                modelInfo?.available ? "พร้อมใช้ทำนาย" : "ต้องเทรนก่อนจึงจะทำนายได้"
+                modelInfo?.available
+                  ? `พร้อมใช้ทำนาย · ${modelInfo.model_type ?? "—"}`
+                  : "ต้องเทรนก่อนจึงจะทำนายได้"
               }
             />
             <StatCard

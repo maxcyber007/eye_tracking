@@ -232,11 +232,16 @@ Then:
    button opens `https://your-host/ui/assessment/`, the participant-facing
    assessment. Hand out either link.
 
-To seed a synthetic dataset for a demo:
+To seed a synthetic dataset for a demo, use **ตั้งค่า → เพิ่มข้อมูลจำลอง** in the
+dashboard, or the equivalent command:
 
 ```bash
 docker exec -it myeye python scripts/generate_synthetic_dataset.py --samples 200
 ```
+
+The same page deletes `dataset.csv` and the trained model when you want to start
+over. Both are irreversible, and the rows it generates are fabricated — a model
+trained on them proves the software runs, nothing more.
 
 Manage accounts:
 

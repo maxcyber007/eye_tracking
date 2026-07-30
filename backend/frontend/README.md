@@ -40,7 +40,8 @@ src/
 │   └── dashboard/          authenticated shell
 │       ├── page.tsx        overview + training
 │       ├── history/        assessment report
-│       └── collect/        labelled data collection
+│       ├── collect/        labelled data collection
+│       └── settings/       mock data, delete dataset, delete model
 ├── components/
 │   ├── ui/                 Button, Input, Card, Modal, Badge, Avatar,
 │   │                       Dropdown, Pagination, Alert, Toast, Loading,

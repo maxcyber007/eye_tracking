@@ -194,6 +194,40 @@ export interface HistoryDeleteResponse {
   message: string;
 }
 
+// --------------------------------------------------------------------------- //
+// Dataset and model maintenance                                               //
+// --------------------------------------------------------------------------- //
+export interface MockDatasetRequest {
+  samples: number;
+  positive_ratio: number;
+  /** Omit to draw from entropy, so repeated runs differ. */
+  seed?: number | null;
+  append: boolean;
+}
+
+export interface MockDatasetResponse {
+  success: boolean;
+  generated: number;
+  appended: boolean;
+  dataset_path: string;
+  dataset: DatasetSummary;
+  message: string;
+}
+
+export interface DatasetDeleteResponse {
+  success: boolean;
+  deleted: number;
+  dataset_path: string;
+  message: string;
+}
+
+export interface ModelDeleteResponse {
+  success: boolean;
+  deleted: boolean;
+  model_path: string;
+  message: string;
+}
+
 /** Uniform error envelope returned by every failing endpoint. */
 export interface ApiErrorBody {
   success: false;

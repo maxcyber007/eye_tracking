@@ -89,7 +89,8 @@ backend/
 │   │   ├── health.py           # GET /  and  GET /health
 │   │   ├── upload.py           # POST /api/upload
 │   │   ├── train.py            # POST /api/train, GET /api/train/status
-│   │   └── predict.py          # POST /api/predict, /api/predict/features, GET /api/history
+│   │   ├── predict.py          # POST /api/predict, /api/predict/features, GET /api/history
+│   │   └── maintenance.py      # POST /api/dataset/mock, DELETE /api/dataset, /api/model
 │   │
 │   ├── ai/
 │   │   ├── base.py             # BaseRiskModel ABC + model registry + ModelBundle
@@ -99,6 +100,7 @@ backend/
 │   │   ├── train_model.py      # dataset.csv → myeye_model.pkl (joblib)
 │   │   ├── predict_model.py    # cached inference + risk banding
 │   │   ├── pipeline.py         # end-to-end orchestration service
+│   │   ├── synthetic.py        # fabricated samples for demos and smoke runs
 │   │   └── utils.py            # signal processing & filesystem helpers
 │   │
 │   ├── models/                 # myeye_model.pkl  (generated)
@@ -183,7 +185,7 @@ curl -X POST http://127.0.0.1:8000/api/predict -F "file=@new_recording.mp4"
 
 | Method | Path                    | Description                                                        |
 | ------ | ----------------------- | ------------------------------------------------------------------ |
-| GET    | `/`                     | Liveness probe.                                                     |
+| GET    | `/`                     | Liveness probe, or a redirect to the web client.                    |
 | GET    | `/health`               | Readiness probe: database, model, dataset and history counters.     |
 | POST   | `/api/upload`           | Upload a recording, extract features, optionally label and predict. |
 | POST   | `/api/train`            | Train the model from `dataset.csv` and write `myeye_model.pkl`.       |
@@ -191,6 +193,14 @@ curl -X POST http://127.0.0.1:8000/api/predict -F "file=@new_recording.mp4"
 | POST   | `/api/predict`          | Predict from a new upload or a previously stored filename.          |
 | POST   | `/api/predict/features` | Predict directly from a pre-computed feature vector.                |
 | GET    | `/api/history`          | Paginated listing of past assessments.                              |
+| POST   | `/api/dataset/mock`     | Write fabricated rows into `dataset.csv` for demos and smoke runs.  |
+| DELETE | `/api/dataset`          | Delete `dataset.csv`. Needs `?confirm=true`.                        |
+| DELETE | `/api/model`            | Delete `myeye_model.pkl` so it can be retrained. Needs `?confirm=true`. |
+
+The last three back the **ตั้งค่า** page. They either destroy data or write rows
+that are not measurements, so each one is behind an explicit confirmation, and
+every generated row keeps a `synthetic_` sample id that stays visible in the
+dataset.
 
 ### `POST /api/upload` (multipart/form-data)
 

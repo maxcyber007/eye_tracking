@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { CheckCircle2, Database, ScrollText } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Database, ScrollText } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -49,6 +49,44 @@ export default function CollectPage() {
   const onSubmitted = useCallback(() => {
     void status.reload();
   }, [status]);
+
+  // While recording, the settings collapse away and the camera takes the whole
+  // width, centred: the operator is looking at the participant's face, not at
+  // a form they have already filled in.
+  if (recording) {
+    return (
+      <div className="mx-auto w-full max-w-2xl space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+              กำลังเก็บข้อมูล
+            </h1>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              ผู้เข้าร่วม <strong>{subjectId.trim()}</strong> ·{" "}
+              {label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)"} · {duration}{" "}
+              วินาที
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setRecording(false)}
+            icon={<ArrowLeft className="size-3.5" aria-hidden="true" />}
+          >
+            แก้ไขการตั้งค่า
+          </Button>
+        </div>
+
+        <AssessmentFlow
+          subjectId={subjectId.trim()}
+          durationSeconds={duration}
+          pattern={pattern}
+          label={label}
+          onSubmitted={onSubmitted}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -105,7 +143,7 @@ export default function CollectPage() {
             <CardHeader>
               <CardTitle>ตั้งค่าตัวอย่าง</CardTitle>
             </CardHeader>
-            <fieldset disabled={recording} className="space-y-4">
+            <fieldset className="space-y-4">
               <legend className="sr-only">รายละเอียดตัวอย่างที่จะบันทึก</legend>
               <Input
                 label="รหัสผู้เข้าร่วม"
@@ -148,31 +186,18 @@ export default function CollectPage() {
               />
             </fieldset>
 
-            {!recording && (
-              <Button
-                fullWidth
-                className="mt-4"
-                disabled={!ready}
-                onClick={() => {
-                  setTouched(true);
-                  if (ready) setRecording(true);
-                }}
-                icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
-              >
-                {ready ? "เริ่มบันทึกตัวอย่าง" : "กรอกข้อมูลให้ครบก่อน"}
-              </Button>
-            )}
-
-            {recording && (
-              <Button
-                variant="outline"
-                fullWidth
-                className="mt-4"
-                onClick={() => setRecording(false)}
-              >
-                แก้ไขการตั้งค่า
-              </Button>
-            )}
+            <Button
+              fullWidth
+              className="mt-4"
+              disabled={!ready}
+              onClick={() => {
+                setTouched(true);
+                if (ready) setRecording(true);
+              }}
+              icon={<CheckCircle2 className="size-4" aria-hidden="true" />}
+            >
+              {ready ? "เริ่มบันทึกตัวอย่าง" : "กรอกข้อมูลให้ครบก่อน"}
+            </Button>
           </Card>
 
           <Card>
@@ -203,37 +228,21 @@ export default function CollectPage() {
         </div>
 
         <div className="lg:col-span-3">
-          {recording ? (
-            <AssessmentFlow
-              subjectId={subjectId.trim()}
-              durationSeconds={duration}
-              pattern={pattern}
-              label={label}
-              onSubmitted={onSubmitted}
-              header={
-                <Alert tone="info">
-                  กำลังบันทึกเป็น{" "}
-                  <strong>{label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)"}</strong>{" "}
-                  · ผู้เข้าร่วม <strong>{subjectId.trim()}</strong>
-                </Alert>
-              }
-            />
-          ) : (
-            <Card className="flex min-h-72 flex-col items-center justify-center text-center">
-              <span
-                className="mb-4 flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
-                aria-hidden="true"
-              >
-                <Database className="size-6" />
-              </span>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                ยังไม่ได้เริ่มบันทึก
-              </p>
-              <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-                กรอกรหัสผู้เข้าร่วมและเลือกกลุ่มทางซ้าย แล้วกดเริ่มบันทึกตัวอย่าง
-              </p>
-            </Card>
-          )}
+          <Card className="flex min-h-72 flex-col items-center justify-center text-center">
+            <span
+              className="mb-4 flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+              aria-hidden="true"
+            >
+              <Database className="size-6" />
+            </span>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              ยังไม่ได้เริ่มบันทึก
+            </p>
+            <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+              กรอกรหัสผู้เข้าร่วมและเลือกกลุ่ม แล้วกดเริ่มบันทึกตัวอย่าง
+              กล้องจะแสดงเต็มหน้าจอตรงกลาง
+            </p>
+          </Card>
         </div>
       </div>
     </div>
