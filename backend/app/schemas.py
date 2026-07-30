@@ -160,6 +160,13 @@ class UploadResponse(BaseModel):
     dataset_path: str | None = Field(
         default=None, description="Dataset the labelled sample was appended to."
     )
+    video_deleted: bool = Field(
+        default=False,
+        description=(
+            "Whether the recording was deleted after its features joined the dataset. "
+            "The per-frame CSV is kept either way."
+        ),
+    )
     video: VideoInfo = Field(description="Technical description of the recording.")
     blink_count: int = Field(description="Number of detected blinks.")
     saccade_count: int = Field(description="Number of detected saccades.")

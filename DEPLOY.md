@@ -284,9 +284,17 @@ docker run --rm -v myeye-data:/data -v "$PWD:/backup" alpine \
 
 **The uploads are face video — biometric personal data that cannot be
 anonymised.** Encrypt the backups, restrict who can read the volume, and delete
-recordings on the schedule your ethics approval specifies. If you only need the
-extracted features, delete the `.mp4`/`.webm` files and keep the `_output.csv`
-files; those cannot be turned back into a face.
+recordings on the schedule your ethics approval specifies.
+
+Labelled recordings — the ones made from **เก็บข้อมูล** — are deleted
+automatically as soon as their features reach `dataset.csv`, so a collection
+session does not accumulate face video. The `_output.csv` files stay: training
+and audit both use them, and they cannot be turned back into a face. Set
+`DELETE_VIDEO_AFTER_DATASET_APPEND=false` if your protocol requires the source
+recordings to be retained.
+
+Recordings from the participant assessment are *not* deleted, because the
+assessment history references them by filename. Those you still prune yourself.
 
 ---
 
@@ -302,6 +310,7 @@ variable in the stack. The ones that matter most in a deployment:
 | `CORS_ALLOW_ORIGINS` | `*` | Restrict to your origin |
 | `MAX_UPLOAD_SIZE_MB` | `200` | Cap upload size |
 | `MAX_FRAMES` | `3600` | Cap CPU per recording |
+| `DELETE_VIDEO_AFTER_DATASET_APPEND` | `true` | Set `false` to retain labelled recordings |
 | `MYEYE_CPUS` / `MYEYE_MEMORY` | `2.0` / `3g` | Container resource ceiling |
 | `AUTH_ENABLED` | `true` | Only disable on an isolated network |
 

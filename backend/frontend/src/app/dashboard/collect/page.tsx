@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { ArrowLeft, CheckCircle2, Database, ScrollText } from "lucide-react";
+import { CheckCircle2, Database, ScrollText, Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input, Select } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Loading";
+import { Modal } from "@/components/ui/Modal";
 import { AssessmentFlow } from "@/components/assessment/AssessmentFlow";
 import { model } from "@/lib/api";
 import { PURSUIT_PATTERNS } from "@/lib/constants";
@@ -50,44 +51,6 @@ export default function CollectPage() {
     void status.reload();
   }, [status]);
 
-  // While recording, the settings collapse away and the camera takes the whole
-  // width, centred: the operator is looking at the participant's face, not at
-  // a form they have already filled in.
-  if (recording) {
-    return (
-      <div className="mx-auto w-full max-w-2xl space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              กำลังเก็บข้อมูล
-            </h1>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              ผู้เข้าร่วม <strong>{subjectId.trim()}</strong> ·{" "}
-              {label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)"} · {duration}{" "}
-              วินาที
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRecording(false)}
-            icon={<ArrowLeft className="size-3.5" aria-hidden="true" />}
-          >
-            แก้ไขการตั้งค่า
-          </Button>
-        </div>
-
-        <AssessmentFlow
-          subjectId={subjectId.trim()}
-          durationSeconds={duration}
-          pattern={pattern}
-          label={label}
-          onSubmitted={onSubmitted}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -105,8 +68,10 @@ export default function CollectPage() {
         วิดีโอใบหน้าเป็นข้อมูลชีวมิติที่ทำให้ไม่ระบุตัวตนไม่ได้ จึงอยู่ภายใต้ PDPA
       </Alert>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="space-y-5 lg:col-span-2">
+      {/* The camera lives in the dialog below, so nothing here previews it —
+          the form is the whole page until recording actually starts. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="space-y-5">
           <Card>
             <CardHeader>
               <CardTitle>ชุดข้อมูลปัจจุบัน</CardTitle>
@@ -199,7 +164,9 @@ export default function CollectPage() {
               {ready ? "เริ่มบันทึกตัวอย่าง" : "กรอกข้อมูลให้ครบก่อน"}
             </Button>
           </Card>
+        </div>
 
+        <div className="space-y-5">
           <Card>
             <CardHeader>
               <CardTitle>คำแนะนำ</CardTitle>
@@ -225,26 +192,41 @@ export default function CollectPage() {
               ))}
             </ul>
           </Card>
-        </div>
 
-        <div className="lg:col-span-3">
-          <Card className="flex min-h-72 flex-col items-center justify-center text-center">
-            <span
-              className="mb-4 flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
-              aria-hidden="true"
-            >
-              <Database className="size-6" />
-            </span>
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              ยังไม่ได้เริ่มบันทึก
-            </p>
-            <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-              กรอกรหัสผู้เข้าร่วมและเลือกกลุ่ม แล้วกดเริ่มบันทึกตัวอย่าง
-              กล้องจะแสดงเต็มหน้าจอตรงกลาง
+          <Card>
+            <CardHeader>
+              <CardTitle>วิดีโอถูกลบหลังบันทึก</CardTitle>
+              <Trash2 className="size-4 shrink-0 text-slate-400" aria-hidden="true" />
+            </CardHeader>
+            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              เมื่อตัวอย่างถูกเพิ่มเข้า <code>dataset.csv</code> แล้ว
+              ระบบจะลบไฟล์วิดีโอทิ้งทันทีเพื่อไม่ให้เปลืองพื้นที่
+              โดยเก็บเฉพาะไฟล์ค่าที่วัดได้รายเฟรม ซึ่งย้อนกลับไปเป็นใบหน้าไม่ได้
+              ทั้งการเทรนและการตรวจสอบย้อนหลังใช้ไฟล์นั้นอยู่แล้ว
             </p>
           </Card>
         </div>
       </div>
+
+      {/* ── Recording dialog ───────────────────────────────────────────── */}
+      <Modal
+        open={recording}
+        onClose={() => setRecording(false)}
+        size="xl"
+        title="บันทึกตัวอย่าง"
+        description={`ผู้เข้าร่วม ${subjectId.trim()} · ${
+          label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)"
+        } · ${duration} วินาที`}
+        bodyClassName="max-h-[78vh]"
+      >
+        <AssessmentFlow
+          subjectId={subjectId.trim()}
+          durationSeconds={duration}
+          pattern={pattern}
+          label={label}
+          onSubmitted={onSubmitted}
+        />
+      </Modal>
     </div>
   );
 }

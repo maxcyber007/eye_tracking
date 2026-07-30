@@ -97,6 +97,8 @@ export interface UploadResponse {
   stored_path: string;
   frame_csv_path: string | null;
   dataset_path: string | null;
+  /** The recording was removed once its features joined the dataset. */
+  video_deleted: boolean;
   video: VideoInfo;
   blink_count: number;
   saccade_count: number;

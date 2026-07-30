@@ -124,6 +124,12 @@ class Settings(BaseSettings):
     default_fps: float = 30.0
     max_frames: int = 3600
     frame_resize_width: int = 640
+    #: Delete the recording once its features have joined ``dataset.csv``.
+    #: Everything training needs is in the dataset row and the per-frame CSV, so
+    #: keeping the video only costs disk — and it is the one artefact that is
+    #: irreversibly identifying. Turn this off if your protocol requires the
+    #: source recordings to be retained for audit.
+    delete_video_after_dataset_append: bool = True
 
     # ----------------------------------------------------------- mediapipe --
     face_mesh_static_mode: bool = False

@@ -344,6 +344,23 @@ def resolve_stored_video(filename: str, settings: Settings) -> Path:
     candidate = (upload_dir / Path(filename).name).resolve()
     if upload_dir not in candidate.parents:
         raise InvalidVideoError("The requested filename is outside the upload directory.")
+
     if not candidate.is_file():
+        # A labelled recording is deleted once its features reach the dataset,
+        # so "missing" is the normal outcome here rather than a mistake. Say so,
+        # otherwise the caller hunts for a bug that is not there.
+        frame_csv = candidate.with_name(f"{candidate.stem}{settings.frame_csv_suffix}")
+        if frame_csv.is_file():
+            raise InvalidVideoError(
+                f"The recording '{candidate.name}' was deleted after its features were "
+                "saved to the dataset, so it cannot be re-analysed. Its per-frame CSV "
+                "was kept. Set DELETE_VIDEO_AFTER_DATASET_APPEND=false to retain "
+                "future recordings.",
+                details={
+                    "filename": candidate.name,
+                    "frame_csv_path": str(frame_csv),
+                    "reason": "deleted_after_dataset_append",
+                },
+            )
         raise InvalidVideoError(f"No stored recording named '{candidate.name}'.")
     return candidate

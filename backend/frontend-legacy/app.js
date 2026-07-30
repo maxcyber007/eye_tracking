@@ -470,7 +470,9 @@
     const badge = $("savedBadge");
     if (body.dataset_path) {
       const label = state.settings.label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)";
-      badge.textContent = `บันทึกเข้าชุดข้อมูลแล้ว — ${label}`;
+      badge.textContent =
+        `บันทึกเข้าชุดข้อมูลแล้ว — ${label}` +
+        (body.video_deleted ? " · ลบไฟล์วิดีโอแล้วเพื่อประหยัดพื้นที่" : "");
       badge.hidden = false;
     } else {
       badge.hidden = true;

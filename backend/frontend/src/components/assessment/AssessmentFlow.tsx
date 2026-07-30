@@ -57,6 +57,7 @@ interface Outcome {
   blinkCount: number;
   usedTarget: boolean;
   savedToDataset: boolean;
+  videoDeleted: boolean;
 }
 
 function normalise(body: UploadResponse | PredictResponse): Outcome {
@@ -87,6 +88,7 @@ function normalise(body: UploadResponse | PredictResponse): Outcome {
     blinkCount: metadata.blink_count ?? 0,
     usedTarget: metadata.tracking_error_source === "target",
     savedToDataset: Boolean(upload.dataset_path),
+    videoDeleted: Boolean(upload.video_deleted),
   };
 }
 
@@ -375,6 +377,13 @@ export function AssessmentFlow({
               <Alert tone="success" title="บันทึกเข้าชุดข้อมูลแล้ว">
                 ตัวอย่างถูกต่อท้าย dataset.csv เรียบร้อย —{" "}
                 {label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)"}
+                {outcome.videoDeleted && (
+                  <>
+                    {" "}
+                    ไฟล์วิดีโอถูกลบแล้วเพื่อประหยัดพื้นที่
+                    เก็บไว้เฉพาะค่าที่วัดได้รายเฟรม
+                  </>
+                )}
               </Alert>
             )}
 

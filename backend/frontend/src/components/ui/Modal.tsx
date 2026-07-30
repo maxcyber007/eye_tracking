@@ -13,10 +13,19 @@ export interface ModalProps {
   description?: string;
   children?: React.ReactNode;
   footer?: React.ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
+  /** Override the body's default scroll height, e.g. for a camera preview. */
+  bodyClassName?: string;
+  /** Hide the close button when the dialog must be dismissed deliberately. */
+  hideCloseButton?: boolean;
 }
 
-const SIZES = { sm: "max-w-sm", md: "max-w-lg", lg: "max-w-2xl" };
+const SIZES = {
+  sm: "max-w-sm",
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+  xl: "max-w-3xl",
+};
 
 /**
  * Accessible dialog with a backdrop and a small entrance animation.
@@ -33,6 +42,8 @@ export function Modal({
   children,
   footer,
   size = "md",
+  bodyClassName,
+  hideCloseButton = false,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
@@ -101,19 +112,26 @@ export function Modal({
                   </p>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                aria-label="ปิดหน้าต่าง"
-                className="-mr-2 -mt-1 shrink-0 px-2"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </Button>
+              {!hideCloseButton && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                  aria-label="ปิดหน้าต่าง"
+                  className="-mr-2 -mt-1 shrink-0 px-2"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
+              )}
             </div>
 
             {children && (
-              <div className="max-h-[60vh] overflow-y-auto p-5 text-sm text-slate-600 dark:text-slate-300">
+              <div
+                className={cn(
+                  "overflow-y-auto p-5 text-sm text-slate-600 dark:text-slate-300",
+                  bodyClassName ?? "max-h-[60vh]",
+                )}
+              >
                 {children}
               </div>
             )}

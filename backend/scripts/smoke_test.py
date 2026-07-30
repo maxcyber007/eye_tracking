@@ -372,8 +372,39 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
     )
     reporter.check("A prediction was returned", payload.get("prediction") is not None)
 
-    print("\n7. Prediction and history")
+    print("\n7. Retention of labelled recordings")
+    reporter.check(
+        "The labelled recording was deleted",
+        payload["video_deleted"] is True and not Path(payload["stored_path"]).exists(),
+        Path(payload["stored_path"]).name,
+    )
+    reporter.check(
+        "Its per-frame CSV survived the deletion",
+        Path(payload["frame_csv_path"]).exists(),
+    )
     response = client.post("/api/predict", data={"filename": payload["filename"]})
+    reporter.check(
+        "Re-analysing a deleted recording explains why it is gone",
+        response.status_code == 400
+        and response.json()["details"].get("reason") == "deleted_after_dataset_append",
+        response.json().get("message", "")[:70],
+    )
+
+    print("\n8. Prediction and history")
+    # Unlabelled, so this one is kept and can be re-analysed by filename.
+    with video.open("rb") as handle:
+        response = client.post(
+            "/api/upload",
+            files={"file": ("smoke-keep.mp4", handle, "video/mp4")},
+            data={"subject_id": "SMOKE", "target_trajectory": trajectory},
+        )
+    kept = response.json()
+    reporter.check(
+        "An unlabelled recording is retained",
+        kept["video_deleted"] is False and Path(kept["stored_path"]).exists(),
+    )
+
+    response = client.post("/api/predict", data={"filename": kept["filename"]})
     predicted = reporter.check("POST /api/predict returns 200", response.status_code == 200)
     if predicted:
         body = response.json()
@@ -400,7 +431,7 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
         f"total={response.json().get('total')}",
     )
 
-    print("\n8. OpenAPI document")
+    print("\n9. OpenAPI document")
     response = client.get("/openapi.json")
     reporter.check("GET /openapi.json returns 200", response.status_code == 200)
 

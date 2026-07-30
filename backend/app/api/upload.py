@@ -61,6 +61,11 @@ async def upload_video(
     ten features and — when ``label`` is given — append the sample to
     ``dataset/dataset.csv``.
 
+    Once a labelled sample is in the dataset the recording itself is deleted, so
+    a collection session does not fill the disk with face video. The per-frame
+    CSV is kept; set ``DELETE_VIDEO_AFTER_DATASET_APPEND=false`` to retain the
+    recordings instead.
+
     Args:
         settings: Injected application settings.
         pipeline: Injected analysis pipeline.
@@ -116,6 +121,8 @@ async def upload_video(
     )
     if label is not None:
         message += " The labelled sample was appended to the training dataset."
+    if analysis.video_deleted:
+        message += " The recording was deleted; its per-frame CSV was kept."
     if prediction is None and predict:
         message += " No trained model is available yet, so no risk score was computed."
 
@@ -126,6 +133,7 @@ async def upload_video(
         stored_path=str(stored_path),
         frame_csv_path=payload["frame_csv_path"],
         dataset_path=payload["dataset_path"],
+        video_deleted=payload["video_deleted"],
         video=payload["video"],
         blink_count=payload["blink_count"],
         saccade_count=payload["saccade_count"],

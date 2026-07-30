@@ -56,6 +56,8 @@ Feature engineering
         ↓
 dataset.csv          (one row per labelled recording)
         ↓
+the recording is deleted; the per-frame CSV is kept
+        ↓
 RandomForestClassifier
         ↓
 Risk score
@@ -104,7 +106,9 @@ backend/
 │   │   └── utils.py            # signal processing & filesystem helpers
 │   │
 │   ├── models/                 # myeye_model.pkl  (generated)
-│   └── uploads/                # recordings + *_output.csv  (generated)
+│   └── uploads/                # recordings + *_output.csv  (generated;
+│                               #   labelled recordings are deleted after
+│                               #   they reach dataset.csv)
 │
 ├── dataset/                    # dataset.csv  (generated)
 ├── scripts/
