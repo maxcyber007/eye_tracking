@@ -58,6 +58,7 @@
     <button class="tab active" data-tab="overview">ภาพรวม</button>
     <button class="tab" data-tab="history">รายงานประวัติ</button>
     <button class="tab" data-tab="collect">เก็บข้อมูล</button>
+    <button class="tab" data-tab="settings">ตั้งค่า</button>
   </nav>
 
   <!-- ── แท็บภาพรวม ─────────────────────────────────────────────────── -->
@@ -144,6 +145,58 @@
         <li>บันทึกอายุและเพศไว้นอกระบบด้วย เพื่อควบคุมตัวกวนตอนวิเคราะห์</li>
       </ul>
     </div>
+  </div>
+
+  <!-- ── แท็บตั้งค่า ────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="tab-settings">
+    <div class="card">
+      <h3>สถานะปัจจุบัน</h3>
+      <div class="quality" id="settingsStats">
+        <div><span>สถานะ</span><b>กำลังโหลด…</b></div>
+      </div>
+      <button class="ghost small" id="btnRefreshSettings">รีเฟรช</button>
+    </div>
+
+    <div class="card warn">
+      <h3>เพิ่มข้อมูลจำลอง (mockup)</h3>
+      <p>
+        ข้อมูลนี้ถูกสร้างขึ้น <b>ไม่ใช่การวัดจริง</b> ใช้สำหรับทดสอบและสาธิตระบบเท่านั้น
+        โมเดลที่เทรนจากข้อมูลนี้ไม่มีความหมายทางคลินิก และห้ามนำผลไปใช้อ้างอิงใดๆ
+        ทุกแถวจะถูกทำเครื่องหมาย <code>synthetic_</code> ไว้ในชุดข้อมูลเสมอ
+      </p>
+
+      <div class="fields">
+        <div class="field">
+          <label for="mockSamples">จำนวนตัวอย่าง</label>
+          <input id="mockSamples" type="number" min="4" max="5000" step="10" value="200" />
+        </div>
+        <div class="field">
+          <label for="mockRatio">สัดส่วนกลุ่มเสี่ยง (%)</label>
+          <input id="mockRatio" type="number" min="1" max="99" step="5" value="50" />
+        </div>
+        <div class="field field-check">
+          <label for="mockAppend">
+            <input id="mockAppend" type="checkbox" />
+            <span>เพิ่มต่อท้ายข้อมูลเดิม <br />(ไม่ติ๊ก = เขียนทับทั้งไฟล์)</span>
+          </label>
+        </div>
+      </div>
+
+      <button class="primary" id="btnMock">สร้างข้อมูลจำลอง</button>
+    </div>
+
+    <div class="card">
+      <h3>ล้างข้อมูล</h3>
+      <p>การลบทั้งสองอย่างนี้กู้คืนไม่ได้จากในระบบ ถ้ายังต้องการข้อมูลเดิม ให้สำรองไฟล์ไว้ก่อน</p>
+      <ul class="checklist">
+        <li><b>ลบชุดข้อมูล</b> — ลบตัวอย่างที่มี label ทั้งหมด โมเดลและผลย้อนหลังไม่ถูกแตะต้อง</li>
+        <li><b>ลบโมเดล</b> — ลบไฟล์โมเดล ชุดข้อมูลยังอยู่ครบ แต่หน้าประเมินจะทำนายไม่ได้จนกว่าจะเทรนใหม่</li>
+      </ul>
+      <button class="danger" id="btnDeleteDataset">ลบ dataset</button>
+      <button class="danger" id="btnDeleteModel">ลบโมเดล เพื่อเทรนใหม่</button>
+    </div>
+
+    <div class="status" id="settingsNotice" hidden></div>
   </div>
 
 </section>

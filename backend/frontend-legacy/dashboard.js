@@ -18,6 +18,15 @@
   /** ขนาดหน้าของตารางรายงาน */
   const PAGE_SIZE = 25;
 
+  /**
+   * ชื่อโมเดลที่แสดงให้ผู้ใช้เห็น
+   *
+   * ฝั่งเซิร์ฟเวอร์ส่ง `model_type` ซึ่งคือชื่ออัลกอริทึม (เช่น `random_forest`)
+   * และจะเปลี่ยนไปเมื่อสลับ estimator — จึงยังแสดงควบคู่กันไว้เสมอ
+   * ไม่ให้หน้าจอปิดบังว่าคะแนนมาจากอัลกอริทึมใดจริงๆ
+   */
+  const MODEL_DISPLAY_NAME = "MyEye";
+
   const state = { user: null, offset: 0, total: 0, subject: "", rows: [] };
 
   // ─── เครื่องมือพื้นฐาน ──────────────────────────────────────────────────
@@ -156,6 +165,7 @@
       tab.classList.add("active");
       $("tab-" + tab.dataset.tab).classList.add("active");
       if (tab.dataset.tab === "history") loadHistory();
+      if (tab.dataset.tab === "settings") loadSettingsStatus();
     });
   });
 
@@ -181,8 +191,9 @@
 
       stats.innerHTML = [
         ["ตัวอย่างทั้งหมด", dataset.rows || 0, ""],
-        ["โมเดลปัจจุบัน", model.available ? model.model_type : "ยังไม่มี",
+        ["โมเดลปัจจุบัน", model.available ? MODEL_DISPLAY_NAME : "ยังไม่มี",
          model.available ? "level-Low" : "level-Moderate"],
+        ["อัลกอริทึม", model.available ? model.model_type : "—", ""],
         ["กลุ่มควบคุม (0)", control, control >= 2 ? "level-Low" : "level-High"],
         ["กลุ่มเสี่ยง (1)", atRisk, atRisk >= 2 ? "level-Low" : "level-High"],
       ]
@@ -468,6 +479,140 @@
   }
 
   $("btnExportCsv").addEventListener("click", exportCsv);
+
+  // ─── แท็บตั้งค่า: ข้อมูลจำลองและการล้างข้อมูล ───────────────────────────
+  /**
+   * แสดงข้อความผลลัพธ์ของการตั้งค่า
+   * @param {boolean} ok สำเร็จหรือไม่
+   * @param {string} message ข้อความที่จะแสดง
+   */
+  function showSettingsNotice(ok, message) {
+    const notice = $("settingsNotice");
+    notice.hidden = false;
+    notice.className = ok ? "status ok" : "status bad";
+    notice.textContent = message;
+  }
+
+  /**
+   * โหลดสถานะชุดข้อมูลและโมเดลสำหรับแท็บตั้งค่า
+   *
+   * ใช้ endpoint เดียวกับแท็บภาพรวม แต่แสดงคนละชุดตัวเลข และเปิด/ปิดปุ่มลบ
+   * ตามสิ่งที่มีอยู่จริง เพื่อไม่ให้กดลบของที่ไม่มี
+   *
+   * @returns {Promise<void>}
+   */
+  async function loadSettingsStatus() {
+    const stats = $("settingsStats");
+    stats.innerHTML = '<div><span>สถานะ</span><b>กำลังโหลด…</b></div>';
+
+    try {
+      const { body } = await api("/api/train/status");
+      const dataset = body.dataset || {};
+      const model = body.model || {};
+      const counts = dataset.label_counts || {};
+      const rows = Number(dataset.rows || 0);
+
+      stats.innerHTML = [
+        ["ตัวอย่างในชุดข้อมูล", rows, ""],
+        ["กลุ่มควบคุม (0)", Number(counts["0"] || 0), ""],
+        ["กลุ่มเสี่ยง (1)", Number(counts["1"] || 0), ""],
+        ["ชื่อโมเดล", model.available ? MODEL_DISPLAY_NAME : "ยังไม่มี",
+         model.available ? "level-Low" : "level-Moderate"],
+        ["อัลกอริทึม", model.available ? model.model_type : "—", ""],
+      ]
+        .map(([l, v, c]) => `<div><span>${escapeHtml(l)}</span><b class="${c}">${escapeHtml(v)}</b></div>`)
+        .join("");
+
+      $("btnDeleteDataset").disabled = rows === 0;
+      $("btnDeleteModel").disabled = !model.available;
+    } catch {
+      /* 401 จัดการแล้ว */
+    }
+  }
+
+  /**
+   * รีเฟรชทุกแผงที่ได้รับผลกระทบจากการเปลี่ยนชุดข้อมูลหรือโมเดล
+   * @returns {Promise<void>}
+   */
+  async function refreshAfterMaintenance() {
+    await loadSettingsStatus();
+    await loadTrainStatus();
+    loadSystemStatus();
+  }
+
+  $("btnRefreshSettings").addEventListener("click", loadSettingsStatus);
+
+  $("btnMock").addEventListener("click", async () => {
+    const button = $("btnMock");
+    const samples = Number($("mockSamples").value);
+    const ratio = Number($("mockRatio").value);
+    const append = $("mockAppend").checked;
+
+    if (!Number.isFinite(samples) || samples < 4 || samples > 5000) {
+      showSettingsNotice(false, "จำนวนตัวอย่างต้องอยู่ระหว่าง 4 ถึง 5000");
+      return;
+    }
+    if (!Number.isFinite(ratio) || ratio <= 0 || ratio >= 100) {
+      showSettingsNotice(false, "สัดส่วนกลุ่มเสี่ยงต้องอยู่ระหว่าง 1 ถึง 99");
+      return;
+    }
+    if (!window.confirm(
+      append
+        ? `เพิ่มข้อมูลจำลอง ${samples} ตัวอย่างต่อท้ายข้อมูลเดิม?\n\n` +
+          "ข้อมูลนี้ไม่ใช่การวัดจริง และจะปนอยู่กับข้อมูลจริงในไฟล์เดียวกัน"
+        : `เขียนทับ dataset.csv ทั้งไฟล์ด้วยข้อมูลจำลอง ${samples} ตัวอย่าง?\n\n` +
+          "ข้อมูลเดิมทั้งหมดจะหายและกู้คืนไม่ได้",
+    )) return;
+
+    button.disabled = true;
+    button.textContent = "กำลังสร้าง…";
+    try {
+      const { ok, body } = await api("/api/dataset/mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ samples, positive_ratio: ratio / 100, append }),
+      });
+      showSettingsNotice(ok, body?.message || body?.error || "ไม่ทราบผลลัพธ์");
+      if (ok) await refreshAfterMaintenance();
+    } catch {
+      /* 401 จัดการแล้ว */
+    } finally {
+      button.textContent = "สร้างข้อมูลจำลอง";
+      button.disabled = false;
+    }
+  });
+
+  $("btnDeleteDataset").addEventListener("click", async () => {
+    if (!window.confirm(
+      "ลบชุดข้อมูลทั้งหมด?\n\n" +
+      "ตัวอย่างที่มี label ทุกแถวจะถูกลบและกู้คืนไม่ได้\n" +
+      "โมเดลที่เทรนไว้ ผลย้อนหลัง และวิดีโอที่อัปโหลดไว้จะไม่ถูกแตะต้อง",
+    )) return;
+
+    try {
+      const { ok, body } = await api("/api/dataset?confirm=true", { method: "DELETE" });
+      showSettingsNotice(ok, body?.message || body?.error || "ไม่ทราบผลลัพธ์");
+      if (ok) await refreshAfterMaintenance();
+    } catch {
+      /* 401 จัดการแล้ว */
+    }
+  });
+
+  $("btnDeleteModel").addEventListener("click", async () => {
+    if (!window.confirm(
+      "ลบโมเดลปัจจุบัน?\n\n" +
+      "หน้าประเมินจะทำนายไม่ได้จนกว่าจะเทรนใหม่\n" +
+      "ชุดข้อมูลยังอยู่ครบ จึงเทรนใหม่ได้จากแท็บภาพรวม",
+    )) return;
+
+    try {
+      const { ok, body } = await api("/api/model?confirm=true", { method: "DELETE" });
+      showSettingsNotice(ok, body?.message || body?.error || "ไม่ทราบผลลัพธ์");
+      if (ok) await refreshAfterMaintenance();
+    } catch {
+      /* 401 จัดการแล้ว */
+    }
+  });
 
   // ─── เริ่มต้น ───────────────────────────────────────────────────────────
   /**
