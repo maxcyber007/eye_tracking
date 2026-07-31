@@ -8,13 +8,18 @@ import {
   ClipboardCheck,
   Eye,
   Gauge,
+  GraduationCap,
   Home,
+  Landmark,
   LayoutDashboard,
   ScanLine,
+  School,
   ShieldCheck,
   Sparkles,
   Stethoscope,
   Target,
+  UserRound,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -80,6 +85,13 @@ const FOCUS_ON_BLUE =
 /** Focus ring for controls sitting on the page background. */
 const FOCUS_RING =
   "outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900";
+
+/** Project authors, in the order the team supplied them. */
+const DEVELOPERS = [
+  "เด็กหญิงกุลรดา รังสิยานนท์",
+  "เด็กชายธีราธร ลิ้มสกุล",
+  "เด็กชายปัณณวิชญ์ จอมชาญพันธ์",
+];
 
 const CHIPS = [
   { icon: Target, label: "Smooth Pursuit" },
@@ -175,6 +187,19 @@ export default function LandingPage() {
               <ScanLine className="size-3.5" aria-hidden="true" />
               เริ่มประเมิน
             </Link>
+            {/* Anchor rather than a route: the credits live on this page, and a
+                same-page jump keeps the landing page a single scroll. */}
+            <a
+              href="#developers"
+              className={cn(
+                "hidden items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-xs font-medium text-white ring-1 ring-white/25 md:flex",
+                "transition-colors hover:bg-white/25",
+                FOCUS_ON_BLUE,
+              )}
+            >
+              <Users className="size-3.5" aria-hidden="true" />
+              ผู้พัฒนา
+            </a>
             <Link
               href="/dashboard/"
               className={cn(
@@ -377,6 +402,78 @@ export default function LandingPage() {
                 </p>
               </motion.article>
             ))}
+          </div>
+        </section>
+
+        {/* ── Developers ─────────────────────────────────────────────── */}
+        <section
+          id="developers"
+          // Clears the sticky header, so the heading is not hidden under it
+          // when the nav link jumps here.
+          className="mt-16 scroll-mt-24"
+          aria-labelledby="developers-heading"
+        >
+          <p className="text-xs font-bold tracking-[0.2em] text-brand-600 dark:text-brand-400">
+            DEVELOPERS
+          </p>
+          <h2
+            id="developers-heading"
+            className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-slate-100"
+          >
+            ผู้พัฒนา
+          </h2>
+
+          <ul className="mt-7 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {DEVELOPERS.map((name, index) => (
+              <motion.li
+                key={name}
+                initial={{ opacity: 0, y: 14 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-60px" }}
+                transition={{ duration: 0.3, delay: index * 0.06 }}
+                className="flex items-center gap-4 rounded-2xl border border-white/60 bg-white/70 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70"
+              >
+                <span
+                  className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-md shadow-brand-600/25"
+                  aria-hidden="true"
+                >
+                  <UserRound className="size-5" />
+                </span>
+                <span className="min-w-0 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {name}
+                </span>
+              </motion.li>
+            ))}
+          </ul>
+
+          <div className="mt-5 rounded-2xl border border-white/60 bg-white/70 p-6 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/70">
+            <dl className="grid gap-4 sm:grid-cols-3">
+              {[
+                { icon: GraduationCap, label: "ระดับชั้น", value: "มัธยมศึกษาปีที่ 1–3" },
+                { icon: School, label: "โรงเรียน", value: "ยุพราชวิทยาลัยเชียงใหม่" },
+                {
+                  icon: Landmark,
+                  label: "สังกัด",
+                  value:
+                    "สำนักงานเขตพื้นที่การศึกษามัธยมศึกษาเชียงใหม่ (สพม.เชียงใหม่)",
+                },
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex gap-3">
+                  <Icon
+                    className="mt-0.5 size-4 shrink-0 text-brand-600 dark:text-brand-400"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0">
+                    <dt className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {label}
+                    </dt>
+                    <dd className="mt-0.5 text-sm font-medium leading-relaxed text-slate-900 dark:text-slate-100">
+                      {value}
+                    </dd>
+                  </div>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
