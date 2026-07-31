@@ -63,7 +63,9 @@
       <div class="fields">
         <div class="field">
           <label for="subjectId">รหัสผู้เข้าร่วม</label>
-          <input id="subjectId" type="text" value="" placeholder="เช่น P001" autocomplete="off" />
+          <!-- readonly ไม่ใช่ disabled: ยังโฟกัสและคัดลอกค่าได้ ซึ่งจำเป็นสำหรับรหัสอ้างอิง -->
+          <input id="subjectId" type="text" value="" autocomplete="off" readonly />
+          <p class="field-hint">ระบบสร้างให้อัตโนมัติ แก้ไขไม่ได้</p>
           <button type="button" class="ghost tiny" id="btnNewSubjectId">สร้างรหัสใหม่</button>
         </div>
         <div class="field">

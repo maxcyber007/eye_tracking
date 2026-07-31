@@ -53,8 +53,8 @@ export default function CollectPage() {
     parsedAge >= MIN_AGE &&
     parsedAge <= MAX_AGE;
 
-  const subjectError =
-    touched && !subjectId.trim() ? "กรุณาใส่รหัสผู้เข้าร่วม" : undefined;
+  // No subject-id error: the field is generated and read-only, so it can never
+  // be blank. Age and label are the only things left to get wrong.
   const ageError = touched && !ageValid ? `กรุณาใส่อายุ ${MIN_AGE}–${MAX_AGE} ปี` : undefined;
   const labelError = touched && !label ? "กรุณาเลือกกลุ่มก่อนเริ่ม" : undefined;
   const ready = Boolean(subjectId.trim() && label && ageValid);
@@ -141,17 +141,10 @@ export default function CollectPage() {
                 <Input
                   label="รหัสผู้เข้าร่วม"
                   required
+                  readOnly
                   value={subjectId}
-                  onChange={(event) => setSubjectId(event.target.value)}
-                  onBlur={() => setTouched(true)}
-                  placeholder="เช่น P001"
                   autoComplete="off"
-                  error={subjectError}
-                  hint={
-                    !subjectError
-                      ? "สร้างให้อัตโนมัติ และสร้างใหม่ทุกครั้งหลังบันทึกเสร็จ"
-                      : undefined
-                  }
+                  hint="สร้างให้อัตโนมัติ แก้ไขไม่ได้ และสร้างใหม่ทุกครั้งหลังบันทึกเสร็จ"
                 />
                 <button
                   type="button"

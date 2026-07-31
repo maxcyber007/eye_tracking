@@ -82,8 +82,8 @@ export default function ParticipantPage() {
   const parsedAge = Number(age);
   const ageValid = age.trim() !== "" && Number.isInteger(parsedAge) && parsedAge >= MIN_AGE && parsedAge <= MAX_AGE;
 
-  const subjectError =
-    touched && !subjectId.trim() ? "กรุณาระบุรหัสผู้เข้ารับการประเมิน" : undefined;
+  // No subject-id error: the field is generated and read-only, so it cannot be
+  // blank or malformed. Age is the only thing the participant can get wrong.
   const ageError = touched && !ageValid ? `กรุณาระบุอายุเป็นตัวเลข ${MIN_AGE}–${MAX_AGE} ปี` : undefined;
 
   const goToConsent = () => {
@@ -211,17 +211,10 @@ export default function ParticipantPage() {
                       <Input
                         label="รหัสผู้เข้ารับการประเมิน (HN / Subject ID)"
                         required
+                        readOnly
                         value={subjectId}
-                        onChange={(event) => setSubjectId(event.target.value)}
-                        onBlur={() => setTouched(true)}
-                        placeholder="เช่น P001 หรือ HN-123456"
                         autoComplete="off"
-                        error={subjectError}
-                        hint={
-                          !subjectError
-                            ? "ระบบสร้างให้อัตโนมัติ แก้ไขได้ถ้าโครงการมีรหัสของตัวเอง"
-                            : undefined
-                        }
+                        hint="ระบบสร้างให้อัตโนมัติ แก้ไขไม่ได้ — กด “สร้างรหัสใหม่” เพื่อขอรหัสอื่น"
                         icon={<IdCard className="size-4" aria-hidden="true" />}
                       />
                       <button

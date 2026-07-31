@@ -19,6 +19,11 @@ export const fieldBase = cn(
   "placeholder:text-slate-400 transition-colors",
   "disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400",
   "dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 dark:disabled:bg-slate-800",
+  // Read-only reads as "shown to you, not yours to type in". Unlike `disabled`
+  // it stays focusable and selectable, so the value can still be read out by a
+  // screen reader and copied — which matters for an identifier.
+  "read-only:cursor-default read-only:bg-slate-50 read-only:text-slate-600",
+  "dark:read-only:bg-slate-800/60 dark:read-only:text-slate-300",
 );
 
 interface FieldWrapperProps {

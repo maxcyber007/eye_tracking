@@ -128,6 +128,11 @@ input, select {
 }
 input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
+/* Read-only reads as "shown to you, not yours to type in". Kept focusable and
+   selectable rather than disabled, so an identifier can still be copied. */
+input[readonly] { background: var(--panel); color: var(--muted); cursor: default; }
+.field-hint { margin: 5px 0 0; font-size: 11.5px; color: var(--muted); }
+
 /* Checkbox rows: the blanket `width:100%` above would stretch the box across
    the card and drop the label onto its own line. */
 .field-check label {
