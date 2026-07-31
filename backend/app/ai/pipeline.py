@@ -107,6 +107,7 @@ class EyeTrackingPipeline:
         video_path: Path,
         *,
         subject_id: str | None = None,
+        age: int | None = None,
         target_trajectory: Sequence[Mapping[str, float]] | None = None,
         label: int | None = None,
         predict: bool = True,
@@ -117,6 +118,8 @@ class EyeTrackingPipeline:
         Args:
             video_path: Path of the recorded video.
             subject_id: Optional participant identifier stored with the sample.
+            age: Optional participant age, stored as metadata rather than as a
+                model feature.
             target_trajectory: Optional stimulus path used for ``tracking_error``.
             label: Supervised target; when provided the sample is appended to
                 ``dataset.csv`` for future training.
@@ -140,6 +143,7 @@ class EyeTrackingPipeline:
             extraction,
             target_trajectory=target_trajectory,
             subject_id=subject_id,
+            age=age,
         )
 
         dataset_path: Path | None = None

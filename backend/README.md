@@ -196,7 +196,7 @@ curl -X POST http://127.0.0.1:8000/api/predict -F "file=@new_recording.mp4"
 | GET    | `/api/train/status`     | Inspect the dataset and the currently loaded model.                 |
 | POST   | `/api/predict`          | Predict from a new upload or a previously stored filename.          |
 | POST   | `/api/predict/features` | Predict directly from a pre-computed feature vector.                |
-| GET    | `/api/history`          | Paginated listing of past assessments.                              |
+| GET    | `/api/history`          | Paginated listing, filterable by `subject_id`, `age_min`, `age_max`. |
 | POST   | `/api/dataset/mock`     | Write fabricated rows into `dataset.csv` for demos and smoke runs.  |
 | DELETE | `/api/dataset`          | Delete `dataset.csv`. Needs `?confirm=true`.                        |
 | DELETE | `/api/model`            | Delete `myeye_model.pkl` so it can be retrained. Needs `?confirm=true`. |
@@ -212,6 +212,7 @@ dataset.
 | ------------------- | ------ | -------- | --------------------------------------------------------------- |
 | `file`              | file   | yes      | Front-camera recording (`.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.m4v`). |
 | `subject_id`        | string | no       | Participant identifier stored with the sample.                   |
+| `age`               | int    | no       | Participant age (1–120). Stored as metadata, never modelled.     |
 | `label`             | int    | no       | `0` = control, `1` = at risk. **Present ⇒ appended to `dataset.csv`.** |
 | `target_trajectory` | string | no       | JSON stimulus path: `[{"t":0.0,"x":0.1,"y":0.5}, ...]`.          |
 | `predict`           | bool   | no       | Also run inference (default `true`; skipped if no model exists). |
@@ -307,8 +308,26 @@ Each recording collapses into the ten features stored in `dataset/dataset.csv`:
   comparable, so never mix them inside one dataset.
 
 `dataset.csv` also stores non-predictive metadata (`sample_id`, `filename`, `subject_id`,
-`duration`, `fps`, `detection_ratio`, `blink_count`, `saccade_count`, …) so every row remains
-traceable back to its recording.
+`age`, `duration`, `fps`, `detection_ratio`, `blink_count`, `saccade_count`, …) so every row
+remains traceable back to its recording.
+
+### Why `age` is metadata and not a feature
+
+Age is the strongest known predictor of Alzheimer's. Adding it to a ten-feature model
+trained on a few hundred samples would let the model score age and reach a flattering
+accuracy while telling you nothing about whether eye movement carries signal — the one
+question the prototype exists to ask. It is recorded so cohorts can be **matched** on it
+and reports **stratified** by it, which is how a confounder should be handled at this
+sample size.
+
+If you later want it in the model, add `"age"` to `FEATURE_COLUMNS` — the registry and the
+trainer pick it up with no code change. Report the age-only baseline alongside, or the
+comparison is meaningless.
+
+Adding a metadata column is safe on an existing dataset: `DatasetRepository.migrate_schema()`
+rewrites the file with the new header before the next append, filling older rows with blanks.
+Appending is positional, so without that step every row after the change would silently take
+on shifted values.
 
 ## Training
 
@@ -361,10 +380,17 @@ CREATE TABLE test_history (
     confidence  REAL    NOT NULL,
     model_type  TEXT,
     subject_id  TEXT,
+    age         INTEGER,            -- NULL for rows predating the field
     features    TEXT,               -- JSON
     metadata    TEXT                -- JSON
 );
 ```
+
+Columns added after the first release are applied to existing databases on start-up
+(`TEST_HISTORY_MIGRATIONS`), so upgrading never needs a manual `ALTER TABLE`. Older rows
+keep `NULL` rather than a fabricated value, and an age filter excludes them — an assessment
+recorded before the field existed genuinely has no age, and treating it as `0` would put it
+in every "young" cohort.
 
 ## Configuration
 

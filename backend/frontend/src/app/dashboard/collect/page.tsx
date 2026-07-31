@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { CheckCircle2, Database, ScrollText, Trash2 } from "lucide-react";
+import { CheckCircle2, Database, RefreshCw, ScrollText, Trash2 } from "lucide-react";
 import { Alert } from "@/components/ui/Alert";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -11,7 +11,8 @@ import { Skeleton } from "@/components/ui/Loading";
 import { Modal } from "@/components/ui/Modal";
 import { AssessmentFlow } from "@/components/assessment/AssessmentFlow";
 import { model } from "@/lib/api";
-import { PURSUIT_PATTERNS } from "@/lib/constants";
+import { MAX_AGE, MIN_AGE, PURSUIT_PATTERNS } from "@/lib/constants";
+import { generateSubjectId } from "@/lib/subject";
 import { useAsync } from "@/hooks/useAsync";
 import type { PursuitPattern } from "@/lib/types";
 
@@ -30,7 +31,10 @@ const LABEL_OPTIONS = [
  * useless for training and cannot be grouped by subject later.
  */
 export default function CollectPage() {
-  const [subjectId, setSubjectId] = useState("");
+  // Generated in a state initialiser so the static export and the first client
+  // render agree; computing it during render would trip a hydration mismatch.
+  const [subjectId, setSubjectId] = useState(() => generateSubjectId());
+  const [age, setAge] = useState("");
   const [label, setLabel] = useState("");
   const [duration, setDuration] = useState(30);
   const [pattern, setPattern] = useState<PursuitPattern>("horizontal");
@@ -42,14 +46,37 @@ export default function CollectPage() {
   const control = Number(counts["0"] ?? 0);
   const atRisk = Number(counts["1"] ?? 0);
 
+  const parsedAge = Number(age);
+  const ageValid =
+    age.trim() !== "" &&
+    Number.isInteger(parsedAge) &&
+    parsedAge >= MIN_AGE &&
+    parsedAge <= MAX_AGE;
+
   const subjectError =
     touched && !subjectId.trim() ? "กรุณาใส่รหัสผู้เข้าร่วม" : undefined;
+  const ageError = touched && !ageValid ? `กรุณาใส่อายุ ${MIN_AGE}–${MAX_AGE} ปี` : undefined;
   const labelError = touched && !label ? "กรุณาเลือกกลุ่มก่อนเริ่ม" : undefined;
-  const ready = Boolean(subjectId.trim() && label);
+  const ready = Boolean(subjectId.trim() && label && ageValid);
 
   const onSubmitted = useCallback(() => {
     void status.reload();
   }, [status]);
+
+  /**
+   * Close the recording dialog and hand the operator a fresh id.
+   *
+   * Reusing the previous id is the classic collection mistake: two different
+   * participants land under one code and neither can be told apart afterwards.
+   * The reset happens on close rather than on submit so the result stays
+   * labelled with the participant it actually belongs to while it is on screen.
+   */
+  const closeRecording = useCallback(() => {
+    setRecording(false);
+    setSubjectId(generateSubjectId());
+    setAge("");
+    setTouched(false);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -110,16 +137,49 @@ export default function CollectPage() {
             </CardHeader>
             <fieldset className="space-y-4">
               <legend className="sr-only">รายละเอียดตัวอย่างที่จะบันทึก</legend>
+              <div>
+                <Input
+                  label="รหัสผู้เข้าร่วม"
+                  required
+                  value={subjectId}
+                  onChange={(event) => setSubjectId(event.target.value)}
+                  onBlur={() => setTouched(true)}
+                  placeholder="เช่น P001"
+                  autoComplete="off"
+                  error={subjectError}
+                  hint={
+                    !subjectError
+                      ? "สร้างให้อัตโนมัติ และสร้างใหม่ทุกครั้งหลังบันทึกเสร็จ"
+                      : undefined
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setSubjectId(generateSubjectId())}
+                  className="mt-1.5 inline-flex items-center gap-1 rounded text-xs font-medium text-brand-600 outline-none transition-colors hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500 dark:text-brand-400 dark:hover:text-brand-300"
+                >
+                  <RefreshCw className="size-3" aria-hidden="true" />
+                  สร้างรหัสใหม่
+                </button>
+              </div>
               <Input
-                label="รหัสผู้เข้าร่วม"
+                label="อายุ (ปี)"
                 required
-                value={subjectId}
-                onChange={(event) => setSubjectId(event.target.value)}
+                type="number"
+                inputMode="numeric"
+                min={MIN_AGE}
+                max={MAX_AGE}
+                value={age}
+                onChange={(event) => setAge(event.target.value)}
                 onBlur={() => setTouched(true)}
-                placeholder="เช่น P001"
+                placeholder="เช่น 68"
                 autoComplete="off"
-                error={subjectError}
-                hint={!subjectError ? "ใช้แบ่งข้อมูลตามคนตอนวิเคราะห์" : undefined}
+                error={ageError}
+                hint={
+                  !ageError
+                    ? "เก็บเป็นข้อมูลประกอบ ไม่ได้ใช้เป็น feature ของโมเดล"
+                    : undefined
+                }
               />
               <Select
                 label="Label สำหรับ dataset"
@@ -180,7 +240,8 @@ export default function CollectPage() {
                 "ใส่รหัสผู้เข้าร่วมให้ตรงกับฐานข้อมูลของโครงการทุกครั้ง",
                 "ใช้อุปกรณ์ ระยะห่าง และสภาพแสงเดียวกันทุกคน",
                 "เก็บกลุ่มควบคุมและกลุ่มเสี่ยงให้จำนวนใกล้เคียงกัน",
-                "บันทึกอายุและเพศไว้นอกระบบ เพื่อควบคุมตัวกวนตอนวิเคราะห์",
+                "จับคู่ช่วงอายุของสองกลุ่มให้ใกล้เคียงกัน เพราะอายุเป็นตัวกวนที่แรงที่สุด",
+                "บันทึกเพศและข้อมูลอื่นไว้นอกระบบ ระบบนี้เก็บเฉพาะรหัสและอายุ",
               ].map((text) => (
                 <li key={text} className="flex gap-2">
                   <span
@@ -211,16 +272,17 @@ export default function CollectPage() {
       {/* ── Recording dialog ───────────────────────────────────────────── */}
       <Modal
         open={recording}
-        onClose={() => setRecording(false)}
+        onClose={closeRecording}
         size="xl"
         title="บันทึกตัวอย่าง"
-        description={`ผู้เข้าร่วม ${subjectId.trim()} · ${
+        description={`ผู้เข้าร่วม ${subjectId.trim()} · อายุ ${parsedAge} ปี · ${
           label === "1" ? "กลุ่มเสี่ยง (1)" : "กลุ่มควบคุม (0)"
         } · ${duration} วินาที`}
         bodyClassName="max-h-[78vh]"
       >
         <AssessmentFlow
           subjectId={subjectId.trim()}
+          age={parsedAge}
           durationSeconds={duration}
           pattern={pattern}
           label={label}

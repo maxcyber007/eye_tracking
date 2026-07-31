@@ -15,7 +15,7 @@ from app.dependencies import (
     save_upload,
 )
 from app.logging_config import get_logger
-from app.schemas import ErrorResponse, UploadResponse
+from app.schemas import MAX_AGE, MIN_AGE, ErrorResponse, UploadResponse
 
 logger = get_logger(__name__)
 
@@ -39,6 +39,10 @@ async def upload_video(
     history_repository: HistoryRepositoryDep,
     file: Annotated[UploadFile, File(description="Front-camera recording of the pursuit task.")],
     subject_id: Annotated[str | None, Form(description="Optional participant identifier.")] = None,
+    age: Annotated[
+        int | None,
+        Form(ge=MIN_AGE, le=MAX_AGE, description="Participant age in years. Stored, not modelled."),
+    ] = None,
     label: Annotated[
         int | None,
         Form(description="Supervised target (0 = control, 1 = at risk). Appends to dataset.csv."),
@@ -72,6 +76,9 @@ async def upload_video(
         history_repository: Injected ``test_history`` repository.
         file: Multipart video file recorded by the frontend.
         subject_id: Optional participant identifier stored with the sample.
+        age: Optional participant age. Written to ``dataset.csv`` as metadata so
+            cohorts can be matched, and deliberately not used as a model
+            feature — see ``METADATA_COLUMNS``.
         label: Supervised target; when present the sample joins the dataset.
         target_trajectory: Optional JSON stimulus path used for ``tracking_error``.
         predict: Whether to run inference after feature extraction.
@@ -92,6 +99,7 @@ async def upload_video(
         analysis = pipeline.analyse(
             stored_path,
             subject_id=subject_id,
+            age=age,
             target_trajectory=trajectory,
             label=label,
             predict=predict,
@@ -110,6 +118,7 @@ async def upload_video(
             confidence=prediction.confidence,
             model_type=prediction.model_type,
             subject_id=subject_id,
+            age=age,
             features=prediction.features,
             metadata=analysis.feature_vector.metadata,
         )

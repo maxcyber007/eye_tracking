@@ -28,6 +28,12 @@ METADATA_COLUMNS: tuple[str, ...] = (
     "created_at",
     "filename",
     "subject_id",
+    # Descriptive only. Age is deliberately *not* in ``feature_columns``: it is
+    # the strongest known predictor of Alzheimer's, so feeding it to a model
+    # trained on a few hundred samples would let the model score age and hide
+    # whether the eye-movement measures carry any signal at all. Stored here so
+    # cohorts can be matched and reports stratified.
+    "age",
     "duration",
     "frame_count",
     "fps",
@@ -98,6 +104,7 @@ class FeatureEngineer:
         *,
         target_trajectory: Sequence[Mapping[str, float]] | None = None,
         subject_id: str | None = None,
+        age: int | None = None,
     ) -> FeatureVector:
         """Aggregate an extraction result into a single feature vector.
 
@@ -108,6 +115,7 @@ class FeatureEngineer:
                 When supplied, ``tracking_error`` measures the real gaze-to-target
                 residual; otherwise a self-consistency proxy is used.
             subject_id: Optional identifier of the participant.
+            age: Optional participant age in years, stored as metadata only.
 
         Returns:
             FeatureVector: Aggregated features plus descriptive metadata.
@@ -166,6 +174,7 @@ class FeatureEngineer:
             "created_at": utils.utc_now_iso(),
             "filename": metadata.path.name,
             "subject_id": subject_id or "",
+            "age": "" if age is None else int(age),
             "duration": round(duration, 4),
             "frame_count": int(metadata.frame_count),
             "fps": round(metadata.fps, 4),
@@ -363,6 +372,8 @@ class DatasetRepository:
             Path: Path of the dataset file that was written.
         """
         utils.ensure_directory(self.path.parent)
+        self.migrate_schema()
+
         row: dict[str, Any] = {name: sample.metadata.get(name, "") for name in METADATA_COLUMNS}
         row.update({name: sample.features.get(name, 0.0) for name in self.settings.feature_columns})
         row[self.settings.label_column] = int(label)
@@ -372,6 +383,50 @@ class DatasetRepository:
         frame.to_csv(self.path, mode="a", header=header, index=False)
         logger.info("Appended sample %s (label=%d) to %s", row["sample_id"], label, self.path)
         return self.path
+
+    def migrate_schema(self) -> bool:
+        """Rewrite the dataset when its header no longer matches the code.
+
+        Appending is positional: ``to_csv(mode="a")`` writes values in the order
+        of the frame it is given, with no idea what the file's header says. So a
+        dataset written before a metadata column existed would silently take on
+        shifted values from the first append onwards — every row after it
+        corrupted, and nothing to notice it by. Rewriting the file once, with
+        the missing columns filled in as blank, is what makes adding a column
+        safe.
+
+        Returns:
+            bool: ``True`` when the file was rewritten.
+        """
+        if not self.exists() or self.path.stat().st_size == 0:
+            return False
+
+        expected = self.columns
+        try:
+            existing = list(pd.read_csv(self.path, nrows=0).columns)
+        except Exception:  # pragma: no cover - unreadable file, leave it alone
+            logger.warning("Could not read the dataset header at %s", self.path, exc_info=True)
+            return False
+
+        if existing == expected:
+            return False
+
+        missing = [name for name in expected if name not in existing]
+        dropped = [name for name in existing if name not in expected]
+        logger.info(
+            "Migrating the dataset at %s (added: %s, no longer written: %s)",
+            self.path,
+            missing or "none",
+            dropped or "none",
+        )
+
+        frame = pd.read_csv(self.path)
+        # Columns the code no longer knows about are kept on the end rather than
+        # discarded: they are somebody's data, and a schema change is no reason
+        # to throw it away.
+        ordered = [*expected, *dropped]
+        frame.reindex(columns=ordered).to_csv(self.path, index=False)
+        return True
 
     def append_frame(self, frame: pd.DataFrame) -> int:
         """Append a whole dataframe of ready-made rows to the dataset.
@@ -388,6 +443,7 @@ class DatasetRepository:
             int: Number of rows written.
         """
         utils.ensure_directory(self.path.parent)
+        self.migrate_schema()
         aligned = frame.reindex(columns=self.columns)
 
         header = not self.path.exists() or self.path.stat().st_size == 0
@@ -468,6 +524,7 @@ def build_feature_vector(
     settings: Settings | None = None,
     target_trajectory: Sequence[Mapping[str, float]] | None = None,
     subject_id: str | None = None,
+    age: int | None = None,
 ) -> FeatureVector:
     """Convenience wrapper around :meth:`FeatureEngineer.build`.
 
@@ -476,6 +533,7 @@ def build_feature_vector(
         settings: Optional settings override.
         target_trajectory: Optional stimulus path recorded by the frontend.
         subject_id: Optional participant identifier.
+        age: Optional participant age in years.
 
     Returns:
         FeatureVector: Aggregated features plus descriptive metadata.
@@ -484,4 +542,5 @@ def build_feature_vector(
         extraction,
         target_trajectory=target_trajectory,
         subject_id=subject_id,
+        age=age,
     )

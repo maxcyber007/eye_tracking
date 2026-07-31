@@ -6,6 +6,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, Query, UploadFile, status
 
+from app.database import HistoryFilter
 from app.dependencies import (
     CurrentUserDep,
     HistoryRepositoryDep,
@@ -24,6 +25,8 @@ from app.exceptions import (
 )
 from app.logging_config import get_logger
 from app.schemas import (
+    MAX_AGE,
+    MIN_AGE,
     ErrorResponse,
     HistoryDeleteResponse,
     HistoryListResponse,
@@ -61,6 +64,10 @@ async def predict_video(
         Form(description="Name of a recording previously stored by POST /api/upload."),
     ] = None,
     subject_id: Annotated[str | None, Form(description="Optional participant identifier.")] = None,
+    age: Annotated[
+        int | None,
+        Form(ge=MIN_AGE, le=MAX_AGE, description="Participant age in years. Stored, not modelled."),
+    ] = None,
     target_trajectory: Annotated[
         str | None,
         Form(description='Stimulus path as JSON, e.g. [{"t":0,"x":0.1,"y":0.5}].'),
@@ -81,6 +88,8 @@ async def predict_video(
         file: Optional multipart video file to analyse.
         filename: Optional name of a previously uploaded recording.
         subject_id: Optional participant identifier.
+        age: Optional participant age; recorded so reports can be stratified,
+            and deliberately not used as a model feature.
         target_trajectory: Optional JSON stimulus path used for ``tracking_error``.
         save_history: Whether to persist the prediction into ``test_history``.
 
@@ -105,6 +114,7 @@ async def predict_video(
         analysis = pipeline.analyse(
             video_path,
             subject_id=subject_id,
+            age=age,
             target_trajectory=trajectory,
             label=None,
             predict=True,
@@ -128,6 +138,7 @@ async def predict_video(
             confidence=prediction.confidence,
             model_type=prediction.model_type,
             subject_id=subject_id,
+            age=age,
             features=prediction.features,
             metadata=analysis.feature_vector.metadata,
         )
@@ -188,6 +199,7 @@ def predict_from_features(
             confidence=prediction.confidence,
             model_type=prediction.model_type,
             subject_id=payload.subject_id,
+            age=payload.age,
             features=prediction.features,
             metadata={"source": "features"},
         )
@@ -206,6 +218,34 @@ def predict_from_features(
     )
 
 
+def _history_filter(
+    subject_id: str | None, age_min: int | None, age_max: int | None
+) -> HistoryFilter:
+    """Build a history filter, rejecting an inverted age range.
+
+    An inverted range matches nothing, so silently accepting it would show an
+    empty report that looks like "no data" rather than "impossible filter" — and
+    on the delete path it would quietly remove nothing at all.
+
+    Args:
+        subject_id: Optional participant filter.
+        age_min: Lowest age to include, inclusive.
+        age_max: Highest age to include, inclusive.
+
+    Returns:
+        HistoryFilter: Validated criteria.
+
+    Raises:
+        BadRequestError: When ``age_min`` exceeds ``age_max``.
+    """
+    if age_min is not None and age_max is not None and age_min > age_max:
+        raise BadRequestError(
+            f"age_min ({age_min}) cannot be greater than age_max ({age_max}).",
+            details={"age_min": age_min, "age_max": age_max},
+        )
+    return HistoryFilter(subject_id=subject_id or None, age_min=age_min, age_max=age_max)
+
+
 @router.get(
     "/history",
     response_model=HistoryListResponse,
@@ -219,26 +259,50 @@ def list_history(
     subject_id: Annotated[
         str | None, Query(description="Only return records of this participant.")
     ] = None,
+    age_min: Annotated[
+        int | None,
+        Query(ge=MIN_AGE, le=MAX_AGE, description="Lowest participant age to include."),
+    ] = None,
+    age_max: Annotated[
+        int | None,
+        Query(ge=MIN_AGE, le=MAX_AGE, description="Highest participant age to include."),
+    ] = None,
 ) -> HistoryListResponse:
     """Return stored assessments, most recent first.
+
+    Filtering by age excludes assessments recorded before the age field existed,
+    because their age is genuinely unknown rather than zero.
 
     Args:
         history_repository: Injected ``test_history`` repository.
         limit: Maximum number of records to return.
         offset: Number of records to skip.
         subject_id: Optional participant filter.
+        age_min: Lowest age to include, inclusive.
+        age_max: Highest age to include, inclusive.
 
     Returns:
-        HistoryListResponse: Total count plus the requested page of records.
+        HistoryListResponse: Total count, the requested page and the age span
+        present in the whole log.
+
+    Raises:
+        BadRequestError: When the age bounds are inverted.
     """
-    records = history_repository.list(limit=limit, offset=offset, subject_id=subject_id)
+    filters = _history_filter(subject_id, age_min, age_max)
+    records = history_repository.list(limit=limit, offset=offset, filters=filters)
+    low, high = history_repository.age_range()
+
     return HistoryListResponse(
         # The total must honour the filter, otherwise paging past the last
         # filtered page shows an empty table with a stale "of N" count.
-        total=history_repository.count(subject_id=subject_id),
+        total=history_repository.count(filters=filters),
         limit=limit,
         offset=offset,
         items=[record.to_dict() for record in records],
+        # Unfiltered, so the report can bound its age control to ages that
+        # actually exist instead of an arbitrary slider.
+        age_min_available=low,
+        age_max_available=high,
     )
 
 
@@ -258,8 +322,19 @@ def clear_history(
     subject_id: Annotated[
         str | None, Query(description="Only clear this participant's records.")
     ] = None,
+    age_min: Annotated[
+        int | None,
+        Query(ge=MIN_AGE, le=MAX_AGE, description="Only clear records at or above this age."),
+    ] = None,
+    age_max: Annotated[
+        int | None,
+        Query(ge=MIN_AGE, le=MAX_AGE, description="Only clear records at or below this age."),
+    ] = None,
 ) -> HistoryDeleteResponse:
-    """Delete stored assessments, optionally limited to one participant.
+    """Delete stored assessments, optionally limited by participant and age.
+
+    The filter is the same one the listing uses, so what you see in a filtered
+    report is exactly what a filtered clear removes.
 
     Only the prediction log is affected.  ``dataset.csv``, the trained model and
     the uploaded recordings are separate stores and are left untouched, so
@@ -269,12 +344,15 @@ def clear_history(
         history_repository: Injected ``test_history`` repository.
         confirm: Explicit confirmation flag; the call is refused without it.
         subject_id: Optional participant filter.
+        age_min: Lowest age to clear, inclusive.
+        age_max: Highest age to clear, inclusive.
 
     Returns:
         HistoryDeleteResponse: Number of rows deleted and the remaining total.
 
     Raises:
         EyeTrackingError: When ``confirm`` was not set.
+        BadRequestError: When the age bounds are inverted.
     """
     if not confirm:
         raise BadRequestError(
@@ -282,7 +360,9 @@ def clear_history(
             details={"hint": "DELETE /api/history?confirm=true"},
         )
 
-    deleted = history_repository.delete_all(subject_id=subject_id)
+    deleted = history_repository.delete_all(
+        filters=_history_filter(subject_id, age_min, age_max)
+    )
     return HistoryDeleteResponse(
         success=True,
         deleted=deleted,

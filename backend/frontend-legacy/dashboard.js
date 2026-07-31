@@ -18,6 +18,10 @@
   /** ขนาดหน้าของตารางรายงาน */
   const PAGE_SIZE = 25;
 
+  /** ช่วงอายุที่รับได้ ตรงกับ MIN_AGE/MAX_AGE ฝั่งเซิร์ฟเวอร์ */
+  const MIN_AGE = 1;
+  const MAX_AGE = 120;
+
   /**
    * ชื่อโมเดลที่แสดงให้ผู้ใช้เห็น
    *
@@ -27,7 +31,15 @@
    */
   const MODEL_DISPLAY_NAME = "MyEye";
 
-  const state = { user: null, offset: 0, total: 0, subject: "", rows: [] };
+  const state = {
+    user: null,
+    offset: 0,
+    total: 0,
+    subject: "",
+    ageMin: null,
+    ageMax: null,
+    rows: [],
+  };
 
   // ─── เครื่องมือพื้นฐาน ──────────────────────────────────────────────────
   /**
@@ -301,23 +313,93 @@
 
   // ─── รายงานประวัติ ──────────────────────────────────────────────────────
   /**
+   * ใส่ตัวกรองที่ใช้อยู่ลงใน query string
+   *
+   * ใช้ร่วมกันทั้งการแสดงรายการ การส่งออก CSV และการล้างข้อมูล เพื่อให้สิ่งที่
+   * เห็นบนตารางกับสิ่งที่ถูกลบเป็นชุดเดียวกันเสมอ
+   *
+   * @param {URLSearchParams} params ตัวแปร query ที่จะเติมค่าเข้าไป
+   */
+  function applyHistoryFilter(params) {
+    if (state.subject) params.set("subject_id", state.subject);
+    if (state.ageMin !== null) params.set("age_min", String(state.ageMin));
+    if (state.ageMax !== null) params.set("age_max", String(state.ageMax));
+  }
+
+  /**
+   * อ่านค่าอายุจากช่องกรอก คืน null เมื่อว่างหรืออยู่นอกช่วงที่รับได้
+   * @param {string} id id ของ input
+   * @returns {number|null} อายุที่ใช้ได้ หรือ null
+   */
+  function readAgeFilter(id) {
+    const raw = $(id).value.trim();
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isInteger(value) && value >= MIN_AGE && value <= MAX_AGE ? value : null;
+  }
+
+  /**
+   * แสดงสรุปตัวกรองที่ใช้อยู่ พร้อมช่วงอายุที่มีข้อมูลจริง
+   * @param {object} body ผลลัพธ์จาก GET /api/history
+   */
+  function renderFilterSummary(body) {
+    const notice = $("filterSummary");
+    const parts = [];
+    if (state.subject) parts.push(`รหัส "${state.subject}"`);
+    if (state.ageMin !== null && state.ageMax !== null) {
+      parts.push(`อายุ ${state.ageMin}–${state.ageMax} ปี`);
+    } else if (state.ageMin !== null) {
+      parts.push(`อายุ ${state.ageMin} ปีขึ้นไป`);
+    } else if (state.ageMax !== null) {
+      parts.push(`อายุไม่เกิน ${state.ageMax} ปี`);
+    }
+
+    // The clear button acts on the filter, so it must not keep promising
+    // "ทั้งหมด" while only part of the log is in scope.
+    $("btnClearHistory").textContent = parts.length
+      ? "ล้างผลย้อนหลังตามตัวกรอง"
+      : "ล้างผลย้อนหลังทั้งหมด";
+
+    if (!parts.length) {
+      notice.hidden = true;
+      return;
+    }
+
+    let text = `กำลังกรอง: ${parts.join(" · ")}`;
+    if (state.ageMin !== null || state.ageMax !== null) {
+      text += " · ไม่รวมรายการที่ไม่ได้บันทึกอายุไว้";
+    }
+    if (body.age_min_available !== null && body.age_min_available !== undefined) {
+      text += ` · ข้อมูลที่มีอยู่ ${body.age_min_available}–${body.age_max_available} ปี`;
+    }
+    notice.textContent = text;
+    notice.hidden = false;
+  }
+
+  /**
    * โหลดรายงานประวัติหน้าปัจจุบัน
    * @returns {Promise<void>}
    */
   async function loadHistory() {
     const tbody = $("historyTable").querySelector("tbody");
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">กำลังโหลด…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">กำลังโหลด…</td></tr>';
 
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(state.offset) });
-    if (state.subject) params.set("subject_id", state.subject);
+    applyHistoryFilter(params);
 
     try {
-      const { body } = await api("/api/history?" + params.toString());
+      const { ok, body } = await api("/api/history?" + params.toString());
+      if (!ok) {
+        tbody.innerHTML =
+          `<tr><td colspan="7" class="empty">${escapeHtml(body?.message || "โหลดไม่สำเร็จ")}</td></tr>`;
+        return;
+      }
       state.total = body.total || 0;
       state.rows = body.items || [];
+      renderFilterSummary(body);
 
       if (!state.rows.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">ไม่มีข้อมูล</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">ไม่มีข้อมูล</td></tr>';
       } else {
         tbody.innerHTML = state.rows
           .map((item) => `
@@ -325,6 +407,7 @@
               <td>${item.id}</td>
               <td>${escapeHtml(formatDate(item.created_at))}</td>
               <td>${escapeHtml(item.subject_id || "—")}</td>
+              <td class="num">${item.age === null || item.age === undefined ? "—" : escapeHtml(item.age)}</td>
               <td class="num">${Number(item.risk_score).toFixed(3)}</td>
               <td><span class="pill level-${escapeHtml(item.risk_level)}">${escapeHtml(item.risk_level)}</span></td>
               <td><button class="row-del" data-id="${item.id}" title="ลบรายการนี้">✕</button></td>
@@ -386,12 +469,41 @@
   }
 
   $("btnApplyFilter").addEventListener("click", () => {
+    const low = readAgeFilter("filterAgeMin");
+    const high = readAgeFilter("filterAgeMax");
+    const notice = $("historyNotice");
+
+    if (low !== null && high !== null && low > high) {
+      notice.hidden = false;
+      notice.className = "status bad";
+      notice.textContent = "อายุต่ำสุดต้องไม่มากกว่าอายุสูงสุด";
+      return;
+    }
+    notice.hidden = true;
+
     state.subject = $("filterSubject").value.trim();
+    state.ageMin = low;
+    state.ageMax = high;
     state.offset = 0;
     loadHistory();
   });
-  $("filterSubject").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") $("btnApplyFilter").click();
+
+  $("btnClearFilter").addEventListener("click", () => {
+    $("filterSubject").value = "";
+    $("filterAgeMin").value = "";
+    $("filterAgeMax").value = "";
+    state.subject = "";
+    state.ageMin = null;
+    state.ageMax = null;
+    state.offset = 0;
+    $("historyNotice").hidden = true;
+    loadHistory();
+  });
+
+  ["filterSubject", "filterAgeMin", "filterAgeMax"].forEach((id) => {
+    $(id).addEventListener("keydown", (event) => {
+      if (event.key === "Enter") $("btnApplyFilter").click();
+    });
   });
 
   $("btnPrev").addEventListener("click", () => {
@@ -404,16 +516,18 @@
   });
 
   $("btnClearHistory").addEventListener("click", async () => {
-    const scope = state.subject ? `ของผู้เข้าร่วม "${state.subject}"` : "ทั้งหมด";
+    const filtered = state.subject || state.ageMin !== null || state.ageMax !== null;
     if (!window.confirm(
-      `ล้างผลย้อนหลัง${scope}?\n\n` +
+      (filtered
+        ? `ล้างผลย้อนหลังตามตัวกรองที่ใช้อยู่ (${state.total} รายการ)?\n\n`
+        : `ล้างผลย้อนหลังทั้งหมด (${state.total} รายการ)?\n\n`) +
       "ลบเฉพาะบันทึกการทำนาย\n" +
       "ชุดข้อมูลเทรน dataset.csv และโมเดลจะไม่ถูกลบ\n\n" +
       "การกระทำนี้ย้อนกลับไม่ได้",
     )) return;
 
     const params = new URLSearchParams({ confirm: "true" });
-    if (state.subject) params.set("subject_id", state.subject);
+    applyHistoryFilter(params);
 
     try {
       const { ok, body } = await api("/api/history?" + params.toString(), { method: "DELETE" });
@@ -447,14 +561,14 @@
       const all = [];
       for (let offset = 0; ; offset += 500) {
         const params = new URLSearchParams({ limit: "500", offset: String(offset) });
-        if (state.subject) params.set("subject_id", state.subject);
+        applyHistoryFilter(params);
         const { body } = await api("/api/history?" + params.toString());
         const items = body.items || [];
         all.push(...items);
         if (items.length < 500 || all.length >= (body.total || 0)) break;
       }
 
-      const columns = ["id", "created_at", "subject_id", "filename",
+      const columns = ["id", "created_at", "subject_id", "age", "filename",
                        "risk_score", "risk_level", "confidence", "model_type"];
       const escapeCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
       const csv = [

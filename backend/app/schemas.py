@@ -15,6 +15,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # imported here rather than repeated as a literal.
 from app.ai.synthetic import MIN_SAMPLES as MIN_SYNTHETIC_SAMPLES
 
+#: Accepted participant age range, in years. Wide enough not to reject a real
+#: participant, narrow enough to catch a mistyped year of birth.
+MIN_AGE = 1
+MAX_AGE = 120
+
 
 # --------------------------------------------------------------------------- #
 # Shared building blocks                                                      #
@@ -266,6 +271,12 @@ class PredictFeaturesRequest(BaseModel):
         description="Mapping of feature name to value; missing features default to 0."
     )
     subject_id: str | None = Field(default=None, description="Optional participant identifier.")
+    age: int | None = Field(
+        default=None,
+        ge=MIN_AGE,
+        le=MAX_AGE,
+        description="Participant age in years. Stored with the record, not used for scoring.",
+    )
     filename: str | None = Field(
         default=None, description="Optional label stored with the history record."
     )
@@ -312,6 +323,10 @@ class HistoryItem(BaseModel):
     confidence: float = Field(description="Probability of the predicted class.")
     model_type: str | None = Field(default=None, description="Model used for the prediction.")
     subject_id: str | None = Field(default=None, description="Participant identifier.")
+    age: int | None = Field(
+        default=None,
+        description="Participant age in years; null for assessments recorded before this field.",
+    )
     features: dict[str, float] = Field(default_factory=dict, description="Stored features.")
     metadata: dict[str, Any] = Field(default_factory=dict, description="Stored metadata.")
 
@@ -328,10 +343,18 @@ class HistoryDeleteResponse(BaseModel):
 class HistoryListResponse(BaseModel):
     """Paginated listing of stored assessments."""
 
-    total: int = Field(description="Total number of stored assessments.")
+    total: int = Field(description="Number of assessments matching the filter.")
     limit: int = Field(description="Page size that was applied.")
     offset: int = Field(description="Offset that was applied.")
     items: list[HistoryItem] = Field(default_factory=list, description="Matching records.")
+    age_min_available: int | None = Field(
+        default=None,
+        description="Youngest age in the whole log, ignoring the filter. Null when none recorded.",
+    )
+    age_max_available: int | None = Field(
+        default=None,
+        description="Oldest age in the whole log, ignoring the filter. Null when none recorded.",
+    )
 
 
 # --------------------------------------------------------------------------- #

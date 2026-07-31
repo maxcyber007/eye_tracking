@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS test_history (
     confidence  REAL    NOT NULL,
     model_type  TEXT,
     subject_id  TEXT,
+    age         INTEGER,
     features    TEXT,
     metadata    TEXT
 )
@@ -42,6 +43,12 @@ CREATE_TEST_HISTORY_INDEX_SQL = (
     "CREATE INDEX IF NOT EXISTS idx_test_history_created_at "
     "ON test_history (created_at DESC)"
 )
+
+#: Columns added after the first release, applied to databases created earlier.
+#: ``CREATE TABLE IF NOT EXISTS`` is a no-op on an existing table, so without
+#: this an upgraded deployment would keep the old shape and every insert would
+#: fail on the unknown column.
+TEST_HISTORY_MIGRATIONS: tuple[tuple[str, str], ...] = (("age", "INTEGER"),)
 
 
 @dataclass(slots=True)
@@ -57,6 +64,7 @@ class TestHistoryRecord:
         confidence: Probability of the predicted class.
         model_type: Registry key of the model that produced the prediction.
         subject_id: Optional participant identifier.
+        age: Participant age in years, when it was recorded.
         features: Aggregated features used for the prediction.
         metadata: Free-form descriptive information.
     """
@@ -69,6 +77,7 @@ class TestHistoryRecord:
     confidence: float
     model_type: str | None = None
     subject_id: str | None = None
+    age: int | None = None
     features: dict[str, float] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -91,6 +100,7 @@ class TestHistoryRecord:
             confidence=float(row["confidence"]),
             model_type=row["model_type"],
             subject_id=row["subject_id"],
+            age=int(row["age"]) if row["age"] is not None else None,
             features=_loads(row["features"]),
             metadata=_loads(row["metadata"]),
         )
@@ -110,6 +120,7 @@ class TestHistoryRecord:
             "confidence": self.confidence,
             "model_type": self.model_type,
             "subject_id": self.subject_id,
+            "age": self.age,
             "features": dict(self.features),
             "metadata": dict(self.metadata),
         }
@@ -211,11 +222,34 @@ class Database:
         with self.connect() as connection:
             connection.execute(CREATE_TEST_HISTORY_SQL)
             connection.execute(CREATE_TEST_HISTORY_INDEX_SQL)
+            self._apply_migrations(connection)
 
         from app.auth import init_auth_schema
 
         init_auth_schema(self)
         logger.info("SQLite schema ready at %s", self.path)
+
+    @staticmethod
+    def _apply_migrations(connection: sqlite3.Connection) -> None:
+        """Add any ``test_history`` columns introduced after the first release.
+
+        Existing rows keep ``NULL`` for the new column, which is exactly right:
+        an assessment recorded before the field existed genuinely has no value,
+        and inventing one would be worse than leaving the gap visible.
+
+        Args:
+            connection: Open connection to run the ``ALTER TABLE`` statements on.
+
+        Returns:
+            None
+        """
+        existing = {
+            str(row["name"]) for row in connection.execute("PRAGMA table_info(test_history)")
+        }
+        for column, column_type in TEST_HISTORY_MIGRATIONS:
+            if column not in existing:
+                connection.execute(f"ALTER TABLE test_history ADD COLUMN {column} {column_type}")
+                logger.info("Added the '%s' column to test_history", column)
 
     def healthy(self) -> bool:
         """Check that the database is reachable.
@@ -230,6 +264,59 @@ class Database:
         except RepositoryError:
             logger.warning("Database health check failed", exc_info=True)
             return False
+
+
+@dataclass(slots=True, frozen=True)
+class HistoryFilter:
+    """Criteria shared by every ``test_history`` query.
+
+    Listing, counting and deleting must agree on what "matching" means — a
+    report that says 12 rows and a delete that removes 30 is the kind of bug
+    that is only noticed after the data is gone. Building the ``WHERE`` clause
+    in one place is what keeps them honest.
+
+    Attributes:
+        subject_id: Exact participant identifier to match.
+        age_min: Lowest participant age to include, inclusive.
+        age_max: Highest participant age to include, inclusive.
+    """
+
+    subject_id: str | None = None
+    age_min: int | None = None
+    age_max: int | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether the filter matches every row."""
+        return self.subject_id is None and self.age_min is None and self.age_max is None
+
+    def where(self) -> tuple[str, list[Any]]:
+        """Render the filter as a SQL fragment and its bound parameters.
+
+        Rows whose age was never recorded are excluded as soon as an age bound
+        is given: ``NULL`` comparisons are unknown in SQL, and silently keeping
+        them would misreport an age-restricted cohort.
+
+        Returns:
+            tuple[str, list[Any]]: The ``WHERE ...`` clause (empty when nothing
+            is filtered) and the parameters to bind to it.
+        """
+        clauses: list[str] = []
+        parameters: list[Any] = []
+
+        if self.subject_id:
+            clauses.append("subject_id = ?")
+            parameters.append(self.subject_id)
+        if self.age_min is not None:
+            clauses.append("age IS NOT NULL AND age >= ?")
+            parameters.append(int(self.age_min))
+        if self.age_max is not None:
+            clauses.append("age IS NOT NULL AND age <= ?")
+            parameters.append(int(self.age_max))
+
+        if not clauses:
+            return "", []
+        return " WHERE " + " AND ".join(clauses), parameters
 
 
 class TestHistoryRepository:
@@ -256,6 +343,7 @@ class TestHistoryRepository:
         confidence: float,
         model_type: str | None = None,
         subject_id: str | None = None,
+        age: int | None = None,
         features: dict[str, float] | None = None,
         metadata: dict[str, Any] | None = None,
         created_at: str | None = None,
@@ -269,6 +357,7 @@ class TestHistoryRepository:
             confidence: Probability of the predicted class.
             model_type: Registry key of the model used.
             subject_id: Optional participant identifier.
+            age: Participant age in years, when it was recorded.
             features: Aggregated features used for the prediction.
             metadata: Free-form descriptive information.
             created_at: Explicit creation timestamp; defaults to "now" in UTC.
@@ -277,13 +366,14 @@ class TestHistoryRepository:
             TestHistoryRecord: The persisted record, including its new ``id``.
         """
         timestamp = created_at or utils.utc_now_iso()
+        stored_age = int(age) if age is not None else None
         with self.database.connect() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO test_history (
                     created_at, filename, risk_score, risk_level, confidence,
-                    model_type, subject_id, features, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    model_type, subject_id, age, features, metadata
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     timestamp,
@@ -293,6 +383,7 @@ class TestHistoryRepository:
                     float(confidence),
                     model_type,
                     subject_id,
+                    stored_age,
                     _dumps(features),
                     _dumps(metadata),
                 ),
@@ -309,6 +400,7 @@ class TestHistoryRepository:
             confidence=float(confidence),
             model_type=model_type,
             subject_id=subject_id,
+            age=stored_age,
             features=dict(features or {}),
             metadata=dict(metadata or {}),
         )
@@ -318,29 +410,44 @@ class TestHistoryRepository:
         *,
         limit: int = 50,
         offset: int = 0,
-        subject_id: str | None = None,
+        filters: HistoryFilter | None = None,
     ) -> list[TestHistoryRecord]:
         """List assessments, most recent first.
 
         Args:
             limit: Maximum number of rows to return.
             offset: Number of rows to skip.
-            subject_id: Optional participant filter.
+            filters: Participant and age criteria; unfiltered when omitted.
 
         Returns:
             list[TestHistoryRecord]: Matching records.
         """
-        query = "SELECT * FROM test_history"
-        parameters: list[Any] = []
-        if subject_id:
-            query += " WHERE subject_id = ?"
-            parameters.append(subject_id)
-        query += " ORDER BY id DESC LIMIT ? OFFSET ?"
-        parameters.extend([max(1, int(limit)), max(0, int(offset))])
+        clause, parameters = (filters or HistoryFilter()).where()
+        query = f"SELECT * FROM test_history{clause} ORDER BY id DESC LIMIT ? OFFSET ?"
+        parameters = [*parameters, max(1, int(limit)), max(0, int(offset))]
 
         with self.database.connect() as connection:
             rows = connection.execute(query, parameters).fetchall()
         return [TestHistoryRecord.from_row(row) for row in rows]
+
+    def age_range(self) -> tuple[int | None, int | None]:
+        """Report the youngest and oldest recorded age.
+
+        Used to bound the report's age filter to ages that actually exist,
+        rather than offering an arbitrary 0–120 slider over data that spans
+        four years.
+
+        Returns:
+            tuple[int | None, int | None]: Minimum and maximum age, both
+            ``None`` when no assessment carries one.
+        """
+        with self.database.connect() as connection:
+            row = connection.execute(
+                "SELECT MIN(age) AS low, MAX(age) AS high FROM test_history WHERE age IS NOT NULL"
+            ).fetchone()
+        if not row or row["low"] is None:
+            return None, None
+        return int(row["low"]), int(row["high"])
 
     def get(self, record_id: int) -> TestHistoryRecord | None:
         """Fetch a single assessment by primary key.
@@ -357,23 +464,21 @@ class TestHistoryRepository:
             ).fetchone()
         return TestHistoryRecord.from_row(row) if row else None
 
-    def count(self, *, subject_id: str | None = None) -> int:
-        """Count the stored assessments, optionally for one participant.
+    def count(self, *, filters: HistoryFilter | None = None) -> int:
+        """Count the stored assessments matching a filter.
 
         Args:
-            subject_id: When given, only that participant's rows are counted.
+            filters: Participant and age criteria; counts everything when
+                omitted.
 
         Returns:
             int: Number of matching rows in ``test_history``.
         """
+        clause, parameters = (filters or HistoryFilter()).where()
         with self.database.connect() as connection:
-            if subject_id:
-                row = connection.execute(
-                    "SELECT COUNT(*) AS total FROM test_history WHERE subject_id = ?",
-                    (subject_id,),
-                ).fetchone()
-            else:
-                row = connection.execute("SELECT COUNT(*) AS total FROM test_history").fetchone()
+            row = connection.execute(
+                f"SELECT COUNT(*) AS total FROM test_history{clause}", parameters
+            ).fetchone()
         return int(row["total"]) if row else 0
 
     def delete(self, record_id: int) -> bool:
@@ -391,36 +496,35 @@ class TestHistoryRepository:
             )
             return cursor.rowcount > 0
 
-    def delete_all(self, *, subject_id: str | None = None) -> int:
-        """Delete every assessment, optionally limited to one participant.
+    def delete_all(self, *, filters: HistoryFilter | None = None) -> int:
+        """Delete every assessment matching a filter.
 
         This only clears the prediction log.  The training dataset and the
         stored recordings live outside the database and are left untouched.
 
         Args:
-            subject_id: When given, only that participant's rows are removed.
+            filters: Participant and age criteria; deletes everything when
+                omitted.
 
         Returns:
             int: Number of rows deleted.
         """
+        criteria = filters or HistoryFilter()
+        clause, parameters = criteria.where()
+
         with self.database.connect() as connection:
-            if subject_id:
-                cursor = connection.execute(
-                    "DELETE FROM test_history WHERE subject_id = ?", (subject_id,)
-                )
-            else:
-                cursor = connection.execute("DELETE FROM test_history")
+            cursor = connection.execute(f"DELETE FROM test_history{clause}", parameters)
             removed = int(cursor.rowcount)
-            # Reclaim the identity counter so a cleared log restarts from id 1.
-            if not subject_id:
-                connection.execute(
-                    "DELETE FROM sqlite_sequence WHERE name = 'test_history'"
-                )
+            # Reclaim the identity counter so a fully cleared log restarts at 1.
+            # Only safe when nothing was filtered, otherwise the surviving rows
+            # would collide with ids handed out again.
+            if criteria.is_empty:
+                connection.execute("DELETE FROM sqlite_sequence WHERE name = 'test_history'")
 
         logger.info(
             "Deleted %d assessment(s)%s",
             removed,
-            f" for subject {subject_id}" if subject_id else " (full reset)",
+            " (full reset)" if criteria.is_empty else f" matching {criteria}",
         )
         return removed
 

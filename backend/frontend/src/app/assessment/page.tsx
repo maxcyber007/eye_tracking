@@ -14,6 +14,7 @@ import {
   Lightbulb,
   ListChecks,
   Play,
+  RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
   Smartphone,
@@ -29,7 +30,8 @@ import { Card } from "@/components/ui/Card";
 import { Checkbox, Input, Select } from "@/components/ui/Input";
 import { Stepper, type Step } from "@/components/ui/Stepper";
 import { AssessmentFlow } from "@/components/assessment/AssessmentFlow";
-import { PURSUIT_PATTERNS } from "@/lib/constants";
+import { MAX_AGE, MIN_AGE, PURSUIT_PATTERNS } from "@/lib/constants";
+import { generateSubjectId } from "@/lib/subject";
 import type { PursuitPattern } from "@/lib/types";
 
 const STEPS: Step[] = [
@@ -60,7 +62,11 @@ const PREPARATION = [
  */
 export default function ParticipantPage() {
   const [step, setStep] = useState(0);
-  const [subjectId, setSubjectId] = useState("");
+  // Generated once per visit, in an initialiser so the server-rendered export
+  // and the first client render agree — a value computed during render would
+  // differ between the two and trip a hydration mismatch.
+  const [subjectId, setSubjectId] = useState(() => generateSubjectId());
+  const [age, setAge] = useState("");
   const [duration, setDuration] = useState(30);
   const [pattern, setPattern] = useState<PursuitPattern>("horizontal");
   const [consent, setConsent] = useState(false);
@@ -73,12 +79,16 @@ export default function ParticipantPage() {
   );
 
   const consentComplete = consent && understood;
+  const parsedAge = Number(age);
+  const ageValid = age.trim() !== "" && Number.isInteger(parsedAge) && parsedAge >= MIN_AGE && parsedAge <= MAX_AGE;
+
   const subjectError =
     touched && !subjectId.trim() ? "กรุณาระบุรหัสผู้เข้ารับการประเมิน" : undefined;
+  const ageError = touched && !ageValid ? `กรุณาระบุอายุเป็นตัวเลข ${MIN_AGE}–${MAX_AGE} ปี` : undefined;
 
   const goToConsent = () => {
     setTouched(true);
-    if (subjectId.trim()) setStep(1);
+    if (subjectId.trim() && ageValid) setStep(1);
   };
 
   return (
@@ -126,6 +136,16 @@ export default function ParticipantPage() {
               <span className="text-slate-500 dark:text-slate-400">รหัส</span>
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 {subjectId.trim()}
+              </span>
+            </span>
+            <span className="flex items-center gap-1.5 text-xs">
+              <UserRound
+                className="size-3.5 text-brand-600 dark:text-brand-400"
+                aria-hidden="true"
+              />
+              <span className="text-slate-500 dark:text-slate-400">อายุ</span>
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                {ageValid ? `${parsedAge} ปี` : "—"}
               </span>
             </span>
             <span className="flex items-center gap-1.5 text-xs">
@@ -177,34 +197,64 @@ export default function ParticipantPage() {
               <Accordion>
                 <AccordionSection
                   title="ข้อมูลระบุตัวผู้เข้ารับการประเมิน"
-                  summary="รหัสที่ใช้อ้างอิงผลการประเมิน"
+                  summary="รหัสอ้างอิงและอายุ"
                   icon={UserRound}
                   defaultOpen
                   status={
-                    subjectId.trim()
+                    subjectId.trim() && ageValid
                       ? { label: "กรอกแล้ว", tone: "success" }
                       : { label: "จำเป็น", tone: "danger" }
                   }
                 >
                   <div className="space-y-4">
+                    <div>
+                      <Input
+                        label="รหัสผู้เข้ารับการประเมิน (HN / Subject ID)"
+                        required
+                        value={subjectId}
+                        onChange={(event) => setSubjectId(event.target.value)}
+                        onBlur={() => setTouched(true)}
+                        placeholder="เช่น P001 หรือ HN-123456"
+                        autoComplete="off"
+                        error={subjectError}
+                        hint={
+                          !subjectError
+                            ? "ระบบสร้างให้อัตโนมัติ แก้ไขได้ถ้าโครงการมีรหัสของตัวเอง"
+                            : undefined
+                        }
+                        icon={<IdCard className="size-4" aria-hidden="true" />}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSubjectId(generateSubjectId())}
+                        className="mt-1.5 inline-flex items-center gap-1 rounded text-xs font-medium text-brand-600 outline-none transition-colors hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500 dark:text-brand-400 dark:hover:text-brand-300"
+                      >
+                        <RefreshCw className="size-3" aria-hidden="true" />
+                        สร้างรหัสใหม่
+                      </button>
+                    </div>
                     <Input
-                      label="รหัสผู้เข้ารับการประเมิน (HN / Subject ID)"
+                      label="อายุ (ปี)"
                       required
-                      value={subjectId}
-                      onChange={(event) => setSubjectId(event.target.value)}
+                      type="number"
+                      inputMode="numeric"
+                      min={MIN_AGE}
+                      max={MAX_AGE}
+                      value={age}
+                      onChange={(event) => setAge(event.target.value)}
                       onBlur={() => setTouched(true)}
-                      placeholder="เช่น P001 หรือ HN-123456"
+                      placeholder="เช่น 68"
                       autoComplete="off"
-                      error={subjectError}
+                      error={ageError}
                       hint={
-                        !subjectError
-                          ? "ใช้อ้างอิงผลย้อนหลัง ไม่ต้องกรอกชื่อ-นามสกุล"
+                        !ageError
+                          ? "ใช้จัดกลุ่มและกรองรายงาน ไม่ได้นำไปคำนวณคะแนนความเสี่ยง"
                           : undefined
                       }
-                      icon={<IdCard className="size-4" aria-hidden="true" />}
+                      icon={<CalendarClock className="size-4" aria-hidden="true" />}
                     />
                     <Alert tone="info">
-                      ระบบเก็บเฉพาะรหัสอ้างอิงและวิดีโอการทำแบบประเมิน
+                      ระบบเก็บเฉพาะรหัสอ้างอิง อายุ และวิดีโอการทำแบบประเมิน
                       ไม่ได้เก็บชื่อ นามสกุล หรือเลขบัตรประชาชน
                     </Alert>
                   </div>
@@ -420,6 +470,7 @@ export default function ParticipantPage() {
             >
               <AssessmentFlow
                 subjectId={subjectId.trim()}
+                age={parsedAge}
                 durationSeconds={duration}
                 pattern={pattern}
               />

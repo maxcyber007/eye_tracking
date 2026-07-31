@@ -10,6 +10,16 @@ import type { PursuitPattern, RiskLevel } from "@/lib/types";
  */
 export const MODEL_DISPLAY_NAME = "MyEye";
 
+/**
+ * Accepted participant age range, mirroring `MIN_AGE`/`MAX_AGE` on the server.
+ *
+ * Age is recorded and reported on, but never fed to the model: it is the
+ * strongest known predictor of Alzheimer's, so including it would let a model
+ * trained on a few hundred samples score age instead of eye movement.
+ */
+export const MIN_AGE = 1;
+export const MAX_AGE = 120;
+
 /** Human readable name and unit for every model feature. */
 export const FEATURE_LABELS: Record<string, { label: string; unit: string }> = {
   eye_velocity: { label: "ความเร็วเฉลี่ยของสายตา", unit: "หน่วยตา/วินาที" },

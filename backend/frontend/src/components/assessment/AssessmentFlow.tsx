@@ -34,6 +34,8 @@ type Stage = "setup" | "task" | "uploading" | "result" | "error";
 
 export interface AssessmentFlowProps {
   subjectId: string;
+  /** Participant age in years; stored with the sample, never scored. */
+  age?: number;
   durationSeconds: number;
   pattern: PursuitPattern;
   /** Present in research mode; routes the upload to /api/upload with a label. */
@@ -102,6 +104,7 @@ function normalise(body: UploadResponse | PredictResponse): Outcome {
  */
 export function AssessmentFlow({
   subjectId,
+  age,
   durationSeconds,
   pattern,
   label,
@@ -128,6 +131,7 @@ export function AssessmentFlow({
             extension: recording.extension,
             trajectory: recording.trajectory,
             subjectId: subjectId || undefined,
+            age,
             label,
           },
           setUploadProgress,
@@ -141,7 +145,7 @@ export function AssessmentFlow({
         setStage("error");
       }
     },
-    [subjectId, label, onSubmitted],
+    [subjectId, age, label, onSubmitted],
   );
 
   const task = usePursuitTask({

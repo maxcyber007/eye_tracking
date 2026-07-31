@@ -24,6 +24,41 @@
   /** โหมดนักวิจัยเปิดด้วย ?mode=research บน URL */
   const RESEARCH_MODE = new URLSearchParams(location.search).get("mode") === "research";
 
+  /** ช่วงอายุที่รับได้ ตรงกับ MIN_AGE/MAX_AGE ฝั่งเซิร์ฟเวอร์ */
+  const MIN_AGE = 1;
+  const MAX_AGE = 120;
+
+  /** ตัวอักษรที่ไม่สับสนเมื่ออ่านจากหน้าจอ (ตัด I, O, 0, 1 ออก) */
+  const ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  /**
+   * สร้างรหัสผู้เข้าร่วมอัตโนมัติ เช่น `P-260730-4KQ2`
+   *
+   * ส่วนวันที่ทำให้เรียงลำดับได้และรู้ว่าออกรหัสเมื่อไร ส่วนสุ่มท้ายกันชนกัน
+   * เมื่อเก็บข้อมูลพร้อมกันหลายเครื่องในวันเดียวกัน
+   *
+   * @returns {string} รหัสผู้เข้าร่วมที่สร้างขึ้นใหม่
+   */
+  function generateSubjectId() {
+    const now = new Date();
+    const stamp =
+      String(now.getFullYear()).slice(-2) +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      String(now.getDate()).padStart(2, "0");
+
+    let suffix = "";
+    const bytes = new Uint8Array(4);
+    if (window.crypto && window.crypto.getRandomValues) {
+      window.crypto.getRandomValues(bytes);
+      for (const byte of bytes) suffix += ID_ALPHABET[byte % ID_ALPHABET.length];
+    } else {
+      for (let i = 0; i < 4; i += 1) {
+        suffix += ID_ALPHABET[Math.floor(Math.random() * ID_ALPHABET.length)];
+      }
+    }
+    return `P-${stamp}-${suffix}`;
+  }
+
   // ─── สถานะของแอป ────────────────────────────────────────────────────────
   const state = {
     stream: null,
@@ -34,7 +69,14 @@
     startedAt: 0,
     running: false,
     aborted: false,
-    settings: { subjectId: "", duration: 30, pattern: "horizontal", apiBase: "", label: "" },
+    settings: {
+      subjectId: "",
+      age: null,
+      duration: 30,
+      pattern: "horizontal",
+      apiBase: "",
+      label: "",
+    },
   };
 
   /** ชื่อและหน่วยของ feature สำหรับแสดงผลให้คนอ่านเข้าใจ */
@@ -105,6 +147,7 @@
     form.append("file", blob, `recording.${extension}`);
     form.append("target_trajectory", JSON.stringify(state.trajectory));
     if (state.settings.subjectId) form.append("subject_id", state.settings.subjectId);
+    if (state.settings.age !== null) form.append("age", String(state.settings.age));
 
     const endpoint = RESEARCH_MODE ? "/api/upload" : "/api/predict";
     if (RESEARCH_MODE) form.append("label", state.settings.label);
@@ -565,8 +608,10 @@
   // ─── การผูก event ───────────────────────────────────────────────────────
   /** อ่านค่าจากฟอร์มตั้งค่าเข้าสู่ state */
   function readSettings() {
+    const age = Number($("age").value);
     state.settings = {
       subjectId: $("subjectId").value.trim(),
+      age: Number.isInteger(age) && age >= MIN_AGE && age <= MAX_AGE ? age : null,
       duration: Math.min(60, Math.max(10, Number($("duration").value) || 30)),
       pattern: $("pattern").value,
       apiBase: $("apiBase").value.trim(),
@@ -584,6 +629,9 @@
     }
     if (RESEARCH_MODE && !state.settings.subjectId) {
       return "กรุณาใส่รหัสผู้เข้าร่วม เพื่อให้แบ่งข้อมูลตามคนได้ในภายหลัง";
+    }
+    if (state.settings.age === null) {
+      return `กรุณาใส่อายุเป็นตัวเลข ${MIN_AGE}–${MAX_AGE} ปี — เปิด “ตั้งค่าการทดสอบ” แล้วกรอก`;
     }
     return "";
   }
@@ -645,9 +693,20 @@
   // ปล่อยกล้องเมื่อออกจากหน้า เพื่อไม่ให้ไฟกล้องค้าง
   window.addEventListener("pagehide", closeCamera);
 
+  $("btnNewSubjectId").addEventListener("click", () => {
+    $("subjectId").value = generateSubjectId();
+  });
+
   // ─── เริ่มต้นตามโหมด ────────────────────────────────────────────────────
-  /** เปิดหรือซ่อนส่วนที่มีเฉพาะโหมดนักวิจัย แล้วโหลดสถานะชุดข้อมูล */
+  /**
+   * เติมรหัสผู้เข้าร่วมให้อัตโนมัติ แล้วเปิด/ซ่อนส่วนของโหมดนักวิจัย
+   *
+   * รหัสถูกเติมให้ทันทีเพื่อไม่ต้องคิดรหัสเองระหว่างเก็บข้อมูล ซึ่งเป็นต้นเหตุ
+   * ของรหัสซ้ำและรหัสพิมพ์ผิด แต่ยังแก้ไขได้ถ้าโครงการมีระบบรหัสของตัวเอง
+   */
   function initialiseMode() {
+    if (!$("subjectId").value.trim()) $("subjectId").value = generateSubjectId();
+
     document.body.classList.toggle("research", RESEARCH_MODE);
     if (!RESEARCH_MODE) return;
 

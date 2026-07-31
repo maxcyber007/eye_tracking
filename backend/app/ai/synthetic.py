@@ -127,6 +127,10 @@ def build_samples(
             "created_at": timestamp,
             "filename": f"{SYNTHETIC_PREFIX}_{index:05d}.mp4",
             "subject_id": f"subject_{index % max(1, n_samples // 3):04d}",
+            # Older on average in the at-risk group, as in any real cohort that
+            # was not age-matched. Present so the report's age filter has
+            # something to work on; never fed to the model.
+            "age": int(np.clip(rng.normal(68.0 if label else 61.0, 9.0), 40, 95)),
             "duration": round(duration, 4),
             "frame_count": int(duration * fps),
             "fps": fps,

@@ -91,14 +91,24 @@
         <label for="filterSubject">กรองตามรหัสผู้เข้าร่วม</label>
         <input id="filterSubject" type="text" placeholder="เว้นว่าง = ทั้งหมด" autocomplete="off" />
       </div>
+      <div class="field">
+        <label for="filterAgeMin">อายุตั้งแต่ (ปี)</label>
+        <input id="filterAgeMin" type="number" min="1" max="120" placeholder="เว้นว่าง = ไม่จำกัด" />
+      </div>
+      <div class="field">
+        <label for="filterAgeMax">ถึง (ปี)</label>
+        <input id="filterAgeMax" type="number" min="1" max="120" placeholder="เว้นว่าง = ไม่จำกัด" />
+      </div>
       <button class="ghost small" id="btnApplyFilter">ค้นหา</button>
+      <button class="ghost small" id="btnClearFilter">ล้างตัวกรอง</button>
     </div>
+    <p class="muted" id="filterSummary" hidden></p>
 
     <div id="historyTableWrap" class="table-wrap">
       <table class="report" id="historyTable">
         <thead>
           <tr>
-            <th>#</th><th>วันที่</th><th>ผู้เข้าร่วม</th>
+            <th>#</th><th>วันที่</th><th>ผู้เข้าร่วม</th><th class="num">อายุ</th>
             <th class="num">คะแนน</th><th>ระดับ</th><th></th>
           </tr>
         </thead>
@@ -142,7 +152,8 @@
         <li>ใส่รหัสผู้เข้าร่วมให้ตรงกับฐานข้อมูลของโครงการทุกครั้ง</li>
         <li>ใช้อุปกรณ์ ระยะห่าง และสภาพแสงเดียวกันทุกคน</li>
         <li>เก็บกลุ่มควบคุมและกลุ่มเสี่ยงให้จำนวนใกล้เคียงกัน</li>
-        <li>บันทึกอายุและเพศไว้นอกระบบด้วย เพื่อควบคุมตัวกวนตอนวิเคราะห์</li>
+        <li>จับคู่ช่วงอายุของสองกลุ่มให้ใกล้เคียงกัน เพราะอายุเป็นตัวกวนที่แรงที่สุด</li>
+        <li>บันทึกเพศและข้อมูลอื่นไว้นอกระบบ ระบบนี้เก็บเฉพาะรหัสและอายุ</li>
       </ul>
     </div>
   </div>

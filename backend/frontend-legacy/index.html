@@ -64,6 +64,12 @@
         <div class="field">
           <label for="subjectId">รหัสผู้เข้าร่วม</label>
           <input id="subjectId" type="text" value="" placeholder="เช่น P001" autocomplete="off" />
+          <button type="button" class="ghost tiny" id="btnNewSubjectId">สร้างรหัสใหม่</button>
+        </div>
+        <div class="field">
+          <label for="age">อายุ (ปี) <b class="req">*</b></label>
+          <input id="age" type="number" inputmode="numeric" min="1" max="120"
+                 placeholder="เช่น 68" autocomplete="off" />
         </div>
         <div class="field research-only">
           <label for="label">Label สำหรับ dataset <b class="req">*</b></label>

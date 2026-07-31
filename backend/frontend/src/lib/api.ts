@@ -139,14 +139,30 @@ export const dataset = {
 // --------------------------------------------------------------------------- //
 // Assessments                                                                 //
 // --------------------------------------------------------------------------- //
+/** Criteria shared by listing, exporting and clearing the history. */
+export interface HistoryFilterParams {
+  subjectId?: string;
+  /** Lowest participant age to include, inclusive. */
+  ageMin?: number;
+  /** Highest participant age to include, inclusive. */
+  ageMax?: number;
+}
+
+/** Append the filter to a query string, skipping anything unset. */
+function applyHistoryFilter(query: URLSearchParams, filter: HistoryFilterParams): void {
+  if (filter.subjectId) query.set("subject_id", filter.subjectId);
+  if (filter.ageMin !== undefined) query.set("age_min", String(filter.ageMin));
+  if (filter.ageMax !== undefined) query.set("age_max", String(filter.ageMax));
+}
+
 export const history = {
-  /** Page through stored assessments, optionally filtered by participant. */
-  list: (params: { limit?: number; offset?: number; subjectId?: string } = {}) => {
+  /** Page through stored assessments, optionally filtered by participant and age. */
+  list: (params: HistoryFilterParams & { limit?: number; offset?: number } = {}) => {
     const query = new URLSearchParams({
       limit: String(params.limit ?? 25),
       offset: String(params.offset ?? 0),
     });
-    if (params.subjectId) query.set("subject_id", params.subjectId);
+    applyHistoryFilter(query, params);
     return request<HistoryListResponse>(`/api/history?${query.toString()}`);
   },
 
@@ -154,10 +170,10 @@ export const history = {
   remove: (id: number) =>
     request<HistoryDeleteResponse>(`/api/history/${id}`, { method: "DELETE" }),
 
-  /** Clear assessments, optionally only for one participant. */
-  clear: (subjectId?: string) => {
+  /** Clear assessments matching a filter; clears everything when it is empty. */
+  clear: (filter: HistoryFilterParams = {}) => {
     const query = new URLSearchParams({ confirm: "true" });
-    if (subjectId) query.set("subject_id", subjectId);
+    applyHistoryFilter(query, filter);
     return request<HistoryDeleteResponse>(`/api/history?${query.toString()}`, {
       method: "DELETE",
     });
@@ -172,6 +188,8 @@ export interface RecordingPayload {
   extension: string;
   trajectory: unknown[];
   subjectId?: string;
+  /** Participant age in years; stored with the record, never used for scoring. */
+  age?: number;
   /** Present only in research mode; routes the upload to /api/upload. */
   label?: string;
 }
@@ -191,6 +209,7 @@ export function uploadRecording(
   form.append("file", payload.blob, `recording.${payload.extension}`);
   form.append("target_trajectory", JSON.stringify(payload.trajectory));
   if (payload.subjectId) form.append("subject_id", payload.subjectId);
+  if (Number.isFinite(payload.age)) form.append("age", String(payload.age));
 
   const research = payload.label !== undefined && payload.label !== "";
   if (research) form.append("label", payload.label as string);

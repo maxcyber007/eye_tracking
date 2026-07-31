@@ -461,9 +461,12 @@ button.tiny { width: auto; margin: 0; padding: 7px 12px; font-size: 12px; }
 .tab-panel.active { display: block; }
 
 /* ── ตารางรายงาน ─────────────────────────────────────────────────────── */
-.filter-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
-.filter-row .field { flex: 1; }
+/* Wraps so the subject box and the two age boxes stay usable on a phone. */
+.filter-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+.filter-row .field { flex: 1 1 140px; min-width: 0; }
 .filter-row button { width: auto; margin: 0; flex-shrink: 0; }
+
+.muted { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
 
 .table-wrap {
   overflow-x: auto;

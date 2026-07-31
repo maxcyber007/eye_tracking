@@ -178,15 +178,22 @@ export interface HistoryItem {
   confidence: number;
   model_type: string | null;
   subject_id: string | null;
+  /** Null for assessments recorded before the age field existed. */
+  age: number | null;
   features: Record<string, number>;
   metadata: SampleMetadata;
 }
 
 export interface HistoryListResponse {
+  /** Number of assessments matching the filter, not the size of the table. */
   total: number;
   limit: number;
   offset: number;
   items: HistoryItem[];
+  /** Youngest age across the whole log, ignoring the filter. */
+  age_min_available: number | null;
+  /** Oldest age across the whole log, ignoring the filter. */
+  age_max_available: number | null;
 }
 
 export interface HistoryDeleteResponse {

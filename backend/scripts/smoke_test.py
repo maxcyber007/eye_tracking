@@ -335,7 +335,12 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
         response = client.post(
             "/api/upload",
             files={"file": ("smoke.mp4", handle, "video/mp4")},
-            data={"subject_id": "SMOKE", "label": "0", "target_trajectory": trajectory},
+            data={
+                "subject_id": "SMOKE",
+                "age": "72",
+                "label": "0",
+                "target_trajectory": trajectory,
+            },
         )
     uploaded = reporter.check(
         "POST /api/upload returns 201",
@@ -369,6 +374,15 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
     reporter.check(
         "The labelled sample joined the dataset",
         payload["dataset_path"] is not None,
+    )
+    reporter.check(
+        "The age reached the dataset as metadata",
+        str(payload["sample_metadata"].get("age")) == "72",
+        f"age={payload['sample_metadata'].get('age')}",
+    )
+    reporter.check(
+        "Age is not a model feature",
+        "age" not in payload["features"] and "age" not in settings.feature_columns,
     )
     reporter.check("A prediction was returned", payload.get("prediction") is not None)
 
@@ -429,6 +443,26 @@ def run_checks(client: Any, video: Path, reporter: CheckReporter) -> None:
         "GET /api/history lists the stored assessments",
         response.status_code == 200 and response.json()["total"] > 0,
         f"total={response.json().get('total')}",
+    )
+    body = response.json()
+    reporter.check(
+        "The stored age is reported back",
+        any(item["age"] == 72 for item in body["items"]),
+        f"ages={[item['age'] for item in body['items']]}",
+    )
+    reporter.check(
+        "The available age span is reported",
+        body["age_min_available"] == 72 and body["age_max_available"] == 72,
+        f"{body['age_min_available']}–{body['age_max_available']}",
+    )
+    reporter.check(
+        "Filtering by age narrows the report",
+        client.get("/api/history?age_min=70&age_max=75").json()["total"] == 1
+        and client.get("/api/history?age_min=90").json()["total"] == 0,
+    )
+    reporter.check(
+        "An inverted age range is rejected",
+        client.get("/api/history?age_min=90&age_max=10").status_code == 400,
     )
 
     print("\n9. OpenAPI document")

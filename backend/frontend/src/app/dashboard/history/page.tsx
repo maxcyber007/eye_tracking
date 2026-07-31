@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import { DataTable, type Column } from "@/components/tables/DataTable";
 import { RiskDistributionChart, RiskTrendChart } from "@/components/dashboard/Charts";
 import { history } from "@/lib/api";
-import { PAGE_SIZE, RISK_LABELS } from "@/lib/constants";
+import { MAX_AGE, MIN_AGE, PAGE_SIZE, RISK_LABELS } from "@/lib/constants";
 import { downloadBlob, formatDateTime, toCsv } from "@/lib/format";
 import type { HistoryItem, HistoryListResponse, RiskLevel } from "@/lib/types";
 
@@ -26,12 +26,47 @@ const RISK_TONE: Record<RiskLevel, "success" | "warning" | "danger"> = {
   High: "danger",
 };
 
+/** Filter actually in effect, as opposed to what is currently typed in the toolbar. */
+interface AppliedFilter {
+  subject: string;
+  ageMin?: number;
+  ageMax?: number;
+}
+
+/** Parse an age box, treating anything out of range or non-numeric as "unset". */
+function parseAge(raw: string): number | undefined {
+  if (raw.trim() === "") return undefined;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < MIN_AGE || value > MAX_AGE) return undefined;
+  return value;
+}
+
+/** Human summary of a filter, for the empty state and the clear-confirmation. */
+function describeFilter(filter: AppliedFilter): string {
+  const parts: string[] = [];
+  if (filter.subject) parts.push(`รหัส "${filter.subject}"`);
+  if (filter.ageMin !== undefined && filter.ageMax !== undefined) {
+    parts.push(`อายุ ${filter.ageMin}–${filter.ageMax} ปี`);
+  } else if (filter.ageMin !== undefined) {
+    parts.push(`อายุ ${filter.ageMin} ปีขึ้นไป`);
+  } else if (filter.ageMax !== undefined) {
+    parts.push(`อายุไม่เกิน ${filter.ageMax} ปี`);
+  }
+  return parts.join(" · ");
+}
+
 function HistoryReport() {
   const searchParams = useSearchParams();
   const { notify } = useToast();
 
   const [subject, setSubject] = useState(searchParams.get("subject") ?? "");
-  const [appliedSubject, setAppliedSubject] = useState(searchParams.get("subject") ?? "");
+  const [ageMin, setAgeMin] = useState("");
+  const [ageMax, setAgeMax] = useState("");
+  // Draft values are edited freely; only "กรอง" promotes them to the query, so
+  // typing a bound does not fire a request per keystroke.
+  const [applied, setApplied] = useState<AppliedFilter>({
+    subject: searchParams.get("subject") ?? "",
+  });
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<HistoryListResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +84,9 @@ function HistoryReport() {
         await history.list({
           limit: PAGE_SIZE,
           offset,
-          subjectId: appliedSubject || undefined,
+          subjectId: applied.subject || undefined,
+          ageMin: applied.ageMin,
+          ageMax: applied.ageMax,
         }),
       );
     } catch (caught) {
@@ -57,7 +94,7 @@ function HistoryReport() {
     } finally {
       setLoading(false);
     }
-  }, [offset, appliedSubject]);
+  }, [offset, applied]);
 
   useEffect(() => {
     void load();
@@ -75,14 +112,25 @@ function HistoryReport() {
     return { counts, subjects };
   }, [rows]);
 
+  const draftMin = parseAge(ageMin);
+  const draftMax = parseAge(ageMax);
+  const rangeInverted =
+    draftMin !== undefined && draftMax !== undefined && draftMin > draftMax;
+  const filterActive =
+    Boolean(applied.subject) || applied.ageMin !== undefined || applied.ageMax !== undefined;
+  const filterLabel = describeFilter(applied);
+
   const applyFilter = () => {
-    setAppliedSubject(subject.trim());
+    if (rangeInverted) return;
+    setApplied({ subject: subject.trim(), ageMin: draftMin, ageMax: draftMax });
     setOffset(0);
   };
 
   const clearFilter = () => {
     setSubject("");
-    setAppliedSubject("");
+    setAgeMin("");
+    setAgeMax("");
+    setApplied({ subject: "" });
     setOffset(0);
   };
 
@@ -104,7 +152,13 @@ function HistoryReport() {
   const clearAll = async () => {
     setBusy(true);
     try {
-      const result = await history.clear(appliedSubject || undefined);
+      // Same criteria the table is showing, so "ล้างข้อมูล" removes exactly the
+      // rows in front of the user and never more.
+      const result = await history.clear({
+        subjectId: applied.subject || undefined,
+        ageMin: applied.ageMin,
+        ageMax: applied.ageMax,
+      });
       notify("success", result.message);
       setClearOpen(false);
       setOffset(0);
@@ -126,7 +180,9 @@ function HistoryReport() {
         const chunk = await history.list({
           limit: 500,
           offset: page * 500,
-          subjectId: appliedSubject || undefined,
+          subjectId: applied.subject || undefined,
+          ageMin: applied.ageMin,
+          ageMax: applied.ageMax,
         });
         all.push(...chunk.items);
         if (chunk.items.length < 500 || all.length >= chunk.total) break;
@@ -136,6 +192,7 @@ function HistoryReport() {
           "id",
           "created_at",
           "subject_id",
+          "age",
           "filename",
           "risk_score",
           "risk_level",
@@ -179,6 +236,22 @@ function HistoryReport() {
           {row.subject_id || "—"}
         </span>
       ),
+    },
+    {
+      key: "age",
+      header: "อายุ",
+      align: "right",
+      // Unknown ages sort last rather than as 0, so a column sort never claims
+      // an assessment from before the field existed was of a newborn.
+      sortValue: (row) => row.age ?? Number.POSITIVE_INFINITY,
+      render: (row) =>
+        row.age === null || row.age === undefined ? (
+          <span className="text-slate-400" title="บันทึกไว้ก่อนมีช่องอายุ">
+            —
+          </span>
+        ) : (
+          <span className="tabular-nums">{row.age}</span>
+        ),
     },
     {
       key: "risk_score",
@@ -251,7 +324,9 @@ function HistoryReport() {
             onClick={() => setClearOpen(true)}
             icon={<Trash2 className="size-3.5" aria-hidden="true" />}
           >
-            ล้างข้อมูล
+            {/* Acts on the filter, so it must not promise "ทั้งหมด" while only
+                part of the log is in scope. */}
+            {filterActive ? "ล้างตามตัวกรอง" : "ล้างข้อมูลทั้งหมด"}
           </Button>
         </div>
       </div>
@@ -307,40 +382,91 @@ function HistoryReport() {
           `${row.subject_id ?? ""} ${row.filename} ${row.risk_level}`
         }
         toolbar={
-          <div className="flex w-full items-end gap-2 sm:w-auto">
-            <Input
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && applyFilter()}
-              placeholder="กรองทุกหน้าด้วยรหัส…"
-              aria-label="กรองตามรหัสผู้เข้าร่วมทุกหน้า"
-              className="h-10"
-            />
-            <Button
-              variant="outline"
-              onClick={applyFilter}
-              icon={<Filter className="size-3.5" aria-hidden="true" />}
-            >
-              กรอง
-            </Button>
-            {appliedSubject && (
-              <Button variant="ghost" onClick={clearFilter} aria-label="ล้างตัวกรอง">
-                <X className="size-4" aria-hidden="true" />
+          <div className="w-full space-y-2">
+            <div className="flex w-full flex-wrap items-end gap-2">
+              <Input
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && applyFilter()}
+                placeholder="กรองทุกหน้าด้วยรหัส…"
+                aria-label="กรองตามรหัสผู้เข้าร่วมทุกหน้า"
+                className="h-10 min-w-40 flex-1"
+              />
+              <div className="flex items-end gap-1.5">
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_AGE}
+                  max={MAX_AGE}
+                  value={ageMin}
+                  onChange={(event) => setAgeMin(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && applyFilter()}
+                  placeholder="อายุต่ำสุด"
+                  aria-label="กรองอายุตั้งแต่ (ปี)"
+                  className="h-10 w-28"
+                />
+                <span
+                  className="pb-2.5 text-sm text-slate-400 dark:text-slate-500"
+                  aria-hidden="true"
+                >
+                  –
+                </span>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={MIN_AGE}
+                  max={MAX_AGE}
+                  value={ageMax}
+                  onChange={(event) => setAgeMax(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && applyFilter()}
+                  placeholder="อายุสูงสุด"
+                  aria-label="กรองอายุถึง (ปี)"
+                  className="h-10 w-28"
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={rangeInverted}
+                onClick={applyFilter}
+                icon={<Filter className="size-3.5" aria-hidden="true" />}
+              >
+                กรอง
               </Button>
+              {filterActive && (
+                <Button variant="ghost" onClick={clearFilter} aria-label="ล้างตัวกรอง">
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
+              )}
+            </div>
+
+            {rangeInverted && (
+              <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                อายุต่ำสุดต้องไม่มากกว่าอายุสูงสุด
+              </p>
+            )}
+            {filterActive && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                กำลังกรอง: <span className="font-medium">{filterLabel}</span>
+                {(applied.ageMin !== undefined || applied.ageMax !== undefined) &&
+                  " · ไม่รวมรายการที่ไม่ได้บันทึกอายุไว้"}
+                {data?.age_min_available !== null &&
+                  data?.age_min_available !== undefined &&
+                  ` · ข้อมูลที่มีอยู่ ${data.age_min_available}–${data.age_max_available} ปี`}
+              </p>
             )}
           </div>
         }
         empty={
           <EmptyState
             icon={<ClipboardList className="size-6" />}
-            title={appliedSubject ? "ไม่พบข้อมูลของรหัสนี้" : "ยังไม่มีผลประเมิน"}
+            title={filterActive ? "ไม่พบข้อมูลตามตัวกรอง" : "ยังไม่มีผลประเมิน"}
             description={
-              appliedSubject
-                ? `ไม่มีรายการของผู้เข้าร่วม "${appliedSubject}" ลองล้างตัวกรองเพื่อดูทั้งหมด`
+              filterActive
+                ? `ไม่มีรายการที่ตรงกับ ${filterLabel} ลองล้างตัวกรองเพื่อดูทั้งหมด`
                 : "เมื่อมีผู้เข้าร่วมทำแบบทดสอบ ผลจะปรากฏที่นี่โดยอัตโนมัติ"
             }
             action={
-              appliedSubject ? (
+              filterActive ? (
                 <Button variant="outline" onClick={clearFilter}>
                   ล้างตัวกรอง
                 </Button>
@@ -363,7 +489,11 @@ function HistoryReport() {
       <ConfirmDialog
         open={pendingDelete !== null}
         title={`ลบผลประเมิน #${pendingDelete?.id ?? ""}?`}
-        description={`ผู้เข้าร่วม: ${pendingDelete?.subject_id || "ไม่ระบุ"}\nการกระทำนี้ย้อนกลับไม่ได้`}
+        description={
+          `ผู้เข้าร่วม: ${pendingDelete?.subject_id || "ไม่ระบุ"}\n` +
+          `อายุ: ${pendingDelete?.age ?? "ไม่ระบุ"}\n` +
+          "การกระทำนี้ย้อนกลับไม่ได้"
+        }
         confirmLabel="ลบรายการ"
         loading={busy}
         onConfirm={removeRow}
@@ -372,12 +502,11 @@ function HistoryReport() {
 
       <ConfirmDialog
         open={clearOpen}
-        title={
-          appliedSubject
-            ? `ล้างผลย้อนหลังของ "${appliedSubject}"?`
-            : "ล้างผลย้อนหลังทั้งหมด?"
-        }
+        title={filterActive ? "ล้างผลย้อนหลังตามตัวกรอง?" : "ล้างผลย้อนหลังทั้งหมด?"}
         description={
+          (filterActive
+            ? `ลบเฉพาะรายการที่ตรงกับ ${filterLabel} — ขณะนี้ ${total} รายการ\n`
+            : `ลบผลย้อนหลังทั้งหมด ${total} รายการ\n`) +
           "ลบเฉพาะบันทึกการทำนาย\n" +
           "ชุดข้อมูลเทรน dataset.csv และโมเดลจะไม่ถูกลบ\n\n" +
           "การกระทำนี้ย้อนกลับไม่ได้"
