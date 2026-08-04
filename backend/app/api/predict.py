@@ -24,6 +24,7 @@ from app.exceptions import (
     NotFoundError,
 )
 from app.logging_config import get_logger
+from app.config import Settings
 from app.schemas import (
     MAX_AGE,
     MIN_AGE,
@@ -32,6 +33,8 @@ from app.schemas import (
     HistoryListResponse,
     PredictFeaturesRequest,
     PredictResponse,
+    RiskBand,
+    build_risk_bands,
 )
 
 logger = get_logger(__name__)
@@ -158,6 +161,7 @@ async def predict_video(
         video=analysis.extraction.metadata.to_dict(),
         features=prediction.features,
         sample_metadata=analysis.feature_vector.metadata,
+        risk_bands=_risk_bands(settings),
     )
 
 
@@ -170,6 +174,7 @@ async def predict_video(
 )
 def predict_from_features(
     payload: PredictFeaturesRequest,
+    settings: SettingsDep,
     predictor: PredictorDep,
     history_repository: HistoryRepositoryDep,
 ) -> PredictResponse:
@@ -179,6 +184,9 @@ def predict_from_features(
 
     Args:
         payload: Feature mapping plus optional bookkeeping fields.
+        settings: Injected application settings. Read through the dependency
+            rather than off the predictor, whose copy is captured once when the
+            process-wide singleton is built and would go stale on a reload.
         predictor: Injected shared predictor.
         history_repository: Injected ``test_history`` repository.
 
@@ -215,6 +223,23 @@ def predict_from_features(
         filename=payload.filename,
         features=prediction.features,
         sample_metadata={"source": "features"},
+        risk_bands=_risk_bands(settings),
+    )
+
+
+def _risk_bands(settings: Settings) -> list[RiskBand]:
+    """Build the band table from the settings that produced the score.
+
+    Args:
+        settings: Application settings holding the thresholds and labels.
+
+    Returns:
+        list[RiskBand]: Bands ordered from lowest to highest.
+    """
+    return build_risk_bands(
+        settings.risk_threshold_low,
+        settings.risk_threshold_moderate,
+        settings.risk_level_labels,
     )
 
 

@@ -6,7 +6,7 @@ served at ``/docs``.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -96,6 +96,40 @@ class SampleMetadata(BaseModel):
     )
 
 
+class RiskBand(BaseModel):
+    """One row of the risk-band table shown beside a result."""
+
+    level: str = Field(description="Band label, matching risk_level.")
+    lower: float | None = Field(
+        default=None, description="Inclusive lower bound; null for the first band."
+    )
+    upper: float | None = Field(
+        default=None, description="Exclusive upper bound; null for the last band."
+    )
+
+
+def build_risk_bands(low: float, moderate: float, labels: Sequence[str]) -> list[RiskBand]:
+    """Describe the configured bands so a client can render the table.
+
+    Sent with every prediction rather than hardcoded in the client: the bounds
+    are configurable, so a UI that carried its own copy would quietly disagree
+    with the score sitting next to it the moment someone changed the setting.
+
+    Args:
+        low: Upper bound (exclusive) of the first band.
+        moderate: Upper bound (exclusive) of the second band.
+        labels: Three ordered band labels.
+
+    Returns:
+        list[RiskBand]: The bands, ordered from lowest to highest.
+    """
+    return [
+        RiskBand(level=labels[0], lower=None, upper=low),
+        RiskBand(level=labels[1], lower=low, upper=moderate),
+        RiskBand(level=labels[2], lower=moderate, upper=None),
+    ]
+
+
 class PredictionPayload(BaseModel):
     """Risk prediction returned by the model."""
 
@@ -111,6 +145,10 @@ class PredictionPayload(BaseModel):
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Descriptive sample information."
+    )
+    risk_bands: list[RiskBand] = Field(
+        default_factory=list,
+        description="The bands that produced risk_level, so a client can show the table.",
     )
 
 
@@ -306,6 +344,10 @@ class PredictResponse(BaseModel):
     )
     sample_metadata: dict[str, Any] = Field(
         default_factory=dict, description="Descriptive sample information."
+    )
+    risk_bands: list[RiskBand] = Field(
+        default_factory=list,
+        description="The bands that produced risk_level, so a client can show the table.",
     )
 
 

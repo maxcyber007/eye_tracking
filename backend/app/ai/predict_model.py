@@ -244,8 +244,18 @@ _PREDICTOR_LOCK = threading.Lock()
 def get_predictor(settings: Settings | None = None) -> RiskPredictor:
     """Return the process-wide :class:`RiskPredictor` singleton.
 
+    The singleton exists to cache the *loaded model*, which is expensive; it is
+    not meant to freeze the configuration. So a caller passing a different
+    settings object — which is what :func:`app.config.reload_settings` produces
+    — has its copy adopted, and the cached model dropped in case the artefact
+    path moved with it. Without this the risk thresholds used to band a score
+    would silently stay at their start-up values after a reload.
+
+    In a running server this never fires: ``get_settings`` is cached, so every
+    request hands over the same object.
+
     Args:
-        settings: Optional settings override used on first construction.
+        settings: Optional settings override.
 
     Returns:
         RiskPredictor: Shared predictor instance.
@@ -255,6 +265,12 @@ def get_predictor(settings: Settings | None = None) -> RiskPredictor:
         with _PREDICTOR_LOCK:
             if _PREDICTOR is None:
                 _PREDICTOR = RiskPredictor(settings=settings)
+        return _PREDICTOR
+
+    if settings is not None and settings is not _PREDICTOR.settings:
+        with _PREDICTOR_LOCK:
+            _PREDICTOR.settings = settings
+            _PREDICTOR.invalidate()
     return _PREDICTOR
 
 

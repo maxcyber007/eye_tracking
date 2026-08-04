@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Loading";
 import { RiskGauge } from "@/components/dashboard/RiskGauge";
+import { RiskBandTable } from "@/components/dashboard/RiskBandTable";
 import { ApiError, uploadRecording } from "@/lib/api";
 import { ERROR_HINTS, FEATURE_LABELS } from "@/lib/constants";
 import { formatMegabytes, formatPercent } from "@/lib/format";
@@ -27,6 +28,7 @@ import {
 import type {
   PredictResponse,
   PursuitPattern,
+  RiskBand,
   UploadResponse,
 } from "@/lib/types";
 
@@ -60,6 +62,7 @@ interface Outcome {
   usedTarget: boolean;
   savedToDataset: boolean;
   videoDeleted: boolean;
+  riskBands: RiskBand[];
 }
 
 function normalise(body: UploadResponse | PredictResponse): Outcome {
@@ -91,6 +94,7 @@ function normalise(body: UploadResponse | PredictResponse): Outcome {
     usedTarget: metadata.tracking_error_source === "target",
     savedToDataset: Boolean(upload.dataset_path),
     videoDeleted: Boolean(upload.video_deleted),
+    riskBands: upload.prediction?.risk_bands ?? predict.risk_bands ?? [],
   };
 }
 
@@ -396,6 +400,11 @@ export function AssessmentFlow({
                 <RiskGauge
                   score={outcome.prediction.risk_score}
                   level={outcome.prediction.risk_level}
+                />
+                <RiskBandTable
+                  className="mt-5"
+                  bands={outcome.riskBands}
+                  current={outcome.prediction.risk_level}
                 />
                 <p className="mt-4 text-center text-xs leading-relaxed text-slate-500 dark:text-slate-400">
                   ตัวเลขนี้เป็นผลจากแบบจำลองสถิติ{" "}

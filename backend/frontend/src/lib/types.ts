@@ -72,6 +72,8 @@ export interface PredictionPayload {
   history_id?: number | null;
   features?: Record<string, number>;
   metadata?: SampleMetadata;
+  /** Bands that produced `risk_level`, so the table matches the score. */
+  risk_bands?: RiskBand[];
 }
 
 /** `POST /api/predict` — flat shape. */
@@ -87,6 +89,8 @@ export interface PredictResponse {
   video: VideoInfo | null;
   features: Record<string, number>;
   sample_metadata: SampleMetadata;
+  /** Bands that produced `risk_level`, so the table matches the score. */
+  risk_bands?: RiskBand[];
 }
 
 /** `POST /api/upload` — prediction nested, and absent when no model exists. */
@@ -167,6 +171,15 @@ export interface HealthResponse {
   dataset: DatasetSummary;
   available_models: string[];
   history_count: number;
+}
+
+/** One row of the score-to-level table, as reported with a prediction. */
+export interface RiskBand {
+  level: string;
+  /** Inclusive lower bound; null for the first band. */
+  lower: number | null;
+  /** Exclusive upper bound; null for the last band. */
+  upper: number | null;
 }
 
 export interface HistoryItem {

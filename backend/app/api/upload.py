@@ -15,7 +15,13 @@ from app.dependencies import (
     save_upload,
 )
 from app.logging_config import get_logger
-from app.schemas import MAX_AGE, MIN_AGE, ErrorResponse, UploadResponse
+from app.schemas import (
+    MAX_AGE,
+    MIN_AGE,
+    ErrorResponse,
+    UploadResponse,
+    build_risk_bands,
+)
 
 logger = get_logger(__name__)
 
@@ -109,6 +115,16 @@ async def upload_video(
 
     payload = analysis.to_dict()
     prediction = analysis.prediction
+
+    if prediction is not None:
+        payload.setdefault("prediction", {})["risk_bands"] = [
+            band.model_dump()
+            for band in build_risk_bands(
+                settings.risk_threshold_low,
+                settings.risk_threshold_moderate,
+                settings.risk_level_labels,
+            )
+        ]
 
     if prediction is not None and save_history:
         record = history_repository.create(

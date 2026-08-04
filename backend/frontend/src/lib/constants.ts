@@ -41,6 +41,33 @@ export const RISK_LABELS: Record<RiskLevel, string> = {
   High: "ความเสี่ยงสูง",
 };
 
+/**
+ * What to do about each band.
+ *
+ * Only the highest band advises seeing a doctor. Consulting a professional is
+ * the safe direction — it defers the judgement rather than making one — but
+ * putting it on every band would make the advice meaningless, and the score is
+ * not calibrated well enough to alarm someone whose result came out low.
+ */
+export const RISK_ADVICE: Record<RiskLevel, string> = {
+  Low: "",
+  Moderate: "",
+  High: "ควรพบแพทย์",
+};
+
+/**
+ * Where the band boundaries come from, shown under the table.
+ *
+ * Deliberately not a citation. The boundaries are an equal three-way split of
+ * the model's output probability; no publication proposes 0.34 and 0.67,
+ * because they are properties of this model rather than of the disease.
+ * Claiming a source here would be inventing authority the numbers do not have.
+ */
+export const RISK_BAND_PROVENANCE =
+  "ระดับความเสี่ยงแบ่งช่วงคะแนนของโมเดลออกเป็นสามส่วนเท่าๆ กัน " +
+  "ยังไม่ได้ปรับเทียบ (calibrate) กับข้อมูลผู้ป่วยจริง จึงยังไม่มีงานวิจัยรองรับตัวเลขจุดตัดนี้ " +
+  "การกำหนดจุดตัดที่อ้างอิงได้ต้องคำนวณจาก ROC curve ของข้อมูลที่เก็บเอง เช่นด้วยวิธี Youden's J (Youden, 1950)";
+
 /** Recovery hints keyed by the backend's error class names. */
 export const ERROR_HINTS: Record<string, string> = {
   ModelNotTrainedError:
